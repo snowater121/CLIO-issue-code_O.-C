@@ -1,0 +1,36 @@
+{
+  "entities": {
+    "user_progress": {
+      "title": "User Progress",
+      "description": "Tracks the current state of a user's game session.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "currentRoomId": { "type": "string" },
+        "inventory": { "type": "array", "items": { "type": "string" } },
+        "solvedPuzzles": { "type": "array", "items": { "type": "string" } },
+        "lastUpdated": { "type": "integer" }
+      },
+      "required": ["userId", "currentRoomId"]
+    },
+    "scenario_data": {
+      "title": "Scenario Data",
+      "description": "The static data for rooms and puzzles, often imported from a structured source like Excel.",
+      "type": "object",
+      "properties": {
+        "scenarioId": { "type": "string" },
+        "config": { "type": "object" }
+      }
+    }
+  },
+  "firestore": {
+    "progress/{userId}": {
+      "schema": "user_progress",
+      "description": "User progress storage"
+    },
+    "scenarios/{scenarioId}": {
+      "schema": "scenario_data",
+      "description": "Scenario configuration"
+    }
+  }
+}

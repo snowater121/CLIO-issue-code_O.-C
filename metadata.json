@@ -1,0 +1,6 @@
+{
+  "name": "The Analog Shift: Mystery of the Found Footage",
+  "description": "An immersive analog horror escape room experience. Unravel the glitchy secrets hidden within old electronics and VHS tapes.",
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": []
+}
