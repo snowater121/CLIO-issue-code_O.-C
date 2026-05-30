@@ -766,10 +766,11 @@ export default function App() {
                        {/* 📼 VHS Tape lying on the floor */}
                        {!state.inventory.includes('VHS') && (
                          <g 
-                           className="hs group/vhs"
+                           className="hs group/vhs animate-bounce"
+                           style={{ animationDuration: "3s" }}
                            onClick={() => handlePointAndClickInteraction('vhs')}
                          >
-                           <rect x="250" y="420" width="48" height="24" rx="2" fill="rgba(6,10,3,0.95)" stroke="var(--ph-bright)" strokeWidth="1.5" className="animate-bounce shadow-[0_0_12px_var(--ph-core)]" style={{ animationDuration: "3s" }} />
+                           <rect x="250" y="420" width="48" height="24" rx="2" fill="rgba(6,10,3,0.95)" stroke="var(--ph-bright)" strokeWidth="1.5" className="shadow-[0_0_12px_var(--ph-core)]" />
                            <circle cx="264" cy="432" r="5" fill="none" stroke="var(--ph-mid)" strokeWidth="1" />
                            <circle cx="282" cy="432" r="5" fill="none" stroke="var(--ph-mid)" strokeWidth="1" />
                            <path d="M 255,424 H 290" stroke="var(--ph-bright)" strokeWidth="1" />
