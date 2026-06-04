@@ -498,7 +498,7 @@ export default function DocumentModal({ docId, onClose, userName }: DocumentModa
         </div>
 
         {/* Scrollable Body */}
-        <div className="flex-1 overflow-y-auto pr-1 select-text scrollbar-thin max-h-[42vh]">
+        <div className="flex-1 overflow-y-auto pr-1 select-text scrollbar-thin max-h-[58vh]"
           {doc.body}
         </div>
 
