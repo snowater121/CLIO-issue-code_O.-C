@@ -694,8 +694,19 @@ export default function App() {
         setState(prev => ({ ...prev, inventory: [...prev.inventory, 'KEY'] }));
         addLog("🎒 획득: 🔑 기존 서랍 열쇠", "system");
       } else if (type === 'papers') {
-        addLog("MEMO_INSPECTED", "player");
-        setNotice("📑 책상 위 흩어진 가공 엽서 단서:\n\n'11월 03일 — CLIO 인광 동조 시퀀스 최초 개업일. 우리의 고귀한 기념 창립일에 무선 배선을 전가 방전 완료하였다. 전위가 평형으로 복구되지 않도록 절대 기념일을 망각하지 마라. — J.H.C'");
+        addLog("SYLLABUS_INSPECTED", "player");
+        setSelectedDocId('syllabus_1997');
+        if (!state.solvedPuzzles.includes('Q01')) {
+          setState(prev => ({
+            ...prev,
+            solvedPuzzles: [...prev.solvedPuzzles, 'Q01'],
+            currentAct: 2
+          }));
+          addLog("QUEST_SOLVED: Q01 강의계획서 열람 완료", "system");
+          setTimeout(() => {
+            triggerClioInterrupt("강의계획서를... 보셨군요. 그 날짜, 저도 기억해요. 0430... 교수님이 처음 저를 튜닝하시던 날이에요.");
+          }, 700);
+        }
       } else if (type === 'drawer') {
         if (state.inventory.includes('NOTE')) return;
         setState(prev => ({ ...prev, inventory: [...prev.inventory, 'NOTE'] }));
