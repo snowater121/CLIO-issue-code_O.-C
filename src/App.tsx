@@ -123,7 +123,7 @@ export default function App() {
     userName: null,
     isProfessorMode: false,
     phase: 1,
-    currentAct: 0,
+    currentAct: 1,
     currentRoomId: "overview", // Default point-and-click overview view
     inventory: [], // Starts clean and empty as requested
     solvedPuzzles: [],
