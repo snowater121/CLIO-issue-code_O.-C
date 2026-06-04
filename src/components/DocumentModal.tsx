@@ -450,7 +450,7 @@ export default function DocumentModal({ docId, onClose, userName }: DocumentModa
           background: "var(--bg-card)", 
           borderColor: "var(--ph-bright)" 
         }}
-        className="w-full max-w-[720px] max-h-[85vh] border rounded-md shadow-2xl p-6 relative flex flex-col justify-between"
+        className="w-full max-w-[960px] max-h-[92vh] border rounded-md shadow-2xl p-8 relative flex flex-col justify-between"
       >
         {/* Header decoration */}
         <div 
