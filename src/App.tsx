@@ -252,7 +252,7 @@ export default function App() {
     localStorage.removeItem("clio_game_state");
     localStorage.removeItem("clio_escaped");
     localStorage.clear();
-    window.location.href = window.location.origin;
+    window.location.href = window.location.origin + '/CLIO-issue-code_O.-C/';
   };
 
   const handleExitToTitle = () => {
