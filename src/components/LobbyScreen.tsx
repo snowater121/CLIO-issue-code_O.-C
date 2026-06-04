@@ -11,23 +11,26 @@ interface LobbyScreenProps {
 const PROFESSOR_NAMES_LOWER = ["전준현", "준현", "교수님", "선생님", "prof", "professor"];
 
 export default function LobbyScreen({ userName, onEnter, onReset }: LobbyScreenProps) {
-  const [inputName, setInputName] = useState(userName || "");
+  const [inputName, setInputName] = useState(userName ? userName.split(" (")[0] : "");
+  const [studentId, setStudentId] = useState(userName && userName.includes(" (") ? userName.split(" (")[1].replace(")", "") : "");
   const [isEnteringName, setIsEnteringName] = useState(!userName);
   const [activeLineCount, setActiveLineCount] = useState(0);
   const [showForm, setShowForm] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
+  const [isIdFocused, setIsIdFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [transitionState, setTransitionState] = useState<"idle" | "glitch" | "crt-collapse">("idle");
 
-  const triggerEnter = (name: string) => {
+  const triggerEnter = (name: string, id: string = "") => {
     setTransitionState("glitch");
+    const fullName = id.trim() ? `${name.trim()} (${id.trim()})` : name.trim();
     
     setTimeout(() => {
       setTransitionState("crt-collapse");
       
       setTimeout(() => {
-        onEnter(name);
+        onEnter(fullName);
       }, 400);
     }, 750);
   };
@@ -77,7 +80,7 @@ export default function LobbyScreen({ userName, onEnter, onReset }: LobbyScreenP
   const handleStart = (e?: FormEvent) => {
     if (e) e.preventDefault();
     if (inputName.trim()) {
-      triggerEnter(inputName.trim());
+      triggerEnter(inputName.trim(), studentId.trim());
     } else {
       setIsEnteringName(true);
     }
@@ -86,10 +89,10 @@ export default function LobbyScreen({ userName, onEnter, onReset }: LobbyScreenP
   const isProf = PROFESSOR_NAMES_LOWER.includes(inputName.trim().toLowerCase());
 
   return (
-    <div className="h-screen w-screen bg-void flex flex-col items-center justify-center font-mono p-4 overflow-hidden relative">
+    <div className="min-h-screen w-full bg-void flex flex-col items-center justify-center font-mono p-4 md:p-8 relative overflow-y-auto">
       <div className="absolute inset-0 bg-gradient-to-tr from-dim/5 to-transparent pointer-events-none" />
       
-      <div className="max-w-xl w-full space-y-8 text-center relative z-10 flex flex-col items-center justify-center">
+      <div className="max-w-xl w-full space-y-8 text-center relative z-10 flex flex-col items-center justify-center py-6">
         {/* Boot Lines Section */}
         <div className="w-full text-left space-y-1.5 mb-2 font-mono text-[13px] tracking-wide select-none min-h-[120px]">
           {bootLinesText.map((line, idx) => {
@@ -157,7 +160,7 @@ export default function LobbyScreen({ userName, onEnter, onReset }: LobbyScreenP
                          OPERATOR_ID_REQUIRED:
                        </label>
                        
-                       <form onSubmit={handleStart} className="w-full max-w-xs relative group flex flex-col items-center">
+                       <form onSubmit={handleStart} className="w-full max-w-xs relative group flex flex-col items-center gap-3">
                          <input 
                            ref={inputRef}
                            type="text"
@@ -183,6 +186,26 @@ export default function LobbyScreen({ userName, onEnter, onReset }: LobbyScreenP
                            maxLength={12}
                            onFocus={() => setIsFocused(true)}
                            onBlur={() => setIsFocused(false)}
+                         />
+
+                         <input 
+                           type="text"
+                           style={{
+                             borderColor: isIdFocused 
+                               ? "var(--ph-dim)" 
+                               : "var(--ph-dark)",
+                             color: "var(--ph-bright)",
+                             boxShadow: isIdFocused 
+                               ? "0 0 16px rgba(90,124,26,0.2)" 
+                               : "none"
+                           }}
+                           className="w-full bg-void border rounded py-3 px-4 text-center outline-none font-mono text-sm tracking-[0.16em] transition-all"
+                           placeholder="STUDENT ID (학번)"
+                           value={studentId}
+                           onChange={(e) => setStudentId(e.target.value)}
+                           maxLength={15}
+                           onFocus={() => setIsIdFocused(true)}
+                           onBlur={() => setIsIdFocused(false)}
                          />
                          
                          {isProf && (
@@ -276,7 +299,7 @@ export default function LobbyScreen({ userName, onEnter, onReset }: LobbyScreenP
         </AnimatePresence>
       </div>
 
-      <div className="fixed bottom-8 left-8 opacity-20 flex flex-col gap-1 font-bold text-[9px] uppercase tracking-widest text-mid">
+      <div className="fixed bottom-4 left-4 md:bottom-8 md:left-8 opacity-20 flex flex-col gap-1 font-bold text-[8px] md:text-[9px] uppercase tracking-widest text-mid pointer-events-none">
         <div>Signal: 2.04ghz</div>
         <div>Oscillation: True</div>
         <div>System: ONLINE</div>

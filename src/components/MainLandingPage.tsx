@@ -27,6 +27,7 @@ import { GAME_META } from "../constants";
 interface MainLandingPageProps {
   onStartGame: () => void;
   onResetState?: () => void;
+  userName?: string | null;
 }
 
 // Structuring the decision logs for the side-drawer
@@ -169,7 +170,7 @@ function clearVideoFromDB(): Promise<void> {
   });
 }
 
-export default function MainLandingPage({ onStartGame, onResetState }: MainLandingPageProps) {
+export default function MainLandingPage({ onStartGame, onResetState, userName }: MainLandingPageProps) {
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState<string>("");
   const [customBgUrl, setCustomBgUrl] = useState<string>(() => {
@@ -512,25 +513,25 @@ export default function MainLandingPage({ onStartGame, onResetState }: MainLandi
   };
 
   return (
-    <div className="min-h-screen w-screen bg-void flex flex-col items-center justify-start p-4 md:p-8 font-mono select-none overflow-x-hidden relative">
+    <div className="min-h-screen w-full bg-void flex flex-col items-center justify-start p-4 md:p-8 font-mono select-none overflow-x-hidden relative">
       
       {/* --- REAL-TIME CCTV SECURITY OVERLAYS (Brought to the foreground - z-30) --- */}
-      <div className="absolute inset-x-8 top-8 flex justify-between z-30 pointer-events-none select-text">
-        <div className="font-mono text-zinc-500/80 uppercase leading-relaxed text-[12px] tracking-[0.2em] font-medium text-left">
+      <div className="absolute inset-x-4 md:inset-x-8 top-4 md:top-8 flex justify-between z-30 pointer-events-none select-text text-[10px] md:text-xs">
+        <div className="font-mono text-zinc-500/80 uppercase leading-relaxed tracking-[0.2em] font-medium text-left">
           <div>1997-08-12</div>
           <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
             <span className="inline-block w-1.5 h-1.5 bg-[#4f5c22] rounded-full animate-pulse" />
             <span>AM {timeString}</span>
           </div>
         </div>
-        <div className="font-mono text-zinc-500/80 uppercase leading-relaxed text-[12px] tracking-[0.2em] font-medium text-right">
+        <div className="font-mono text-zinc-500/80 uppercase leading-relaxed tracking-[0.2em] font-medium text-right">
           <div>LAB-317</div>
           <div>CAM-03</div>
         </div>
       </div>
 
-      <div className="absolute inset-x-8 bottom-8 flex justify-between items-end z-30 pointer-events-none select-text">
-        <div className="font-mono text-zinc-500/80 uppercase leading-relaxed text-[10px] tracking-[0.16em] font-medium text-left space-y-1">
+      <div className="absolute inset-x-4 md:inset-x-8 bottom-4 md:bottom-8 flex justify-between items-end z-30 pointer-events-none select-text text-[9px] md:text-xs">
+        <div className="font-mono text-zinc-500/80 uppercase leading-relaxed tracking-[0.16em] font-medium text-left space-y-1">
           <div className="flex items-center gap-1.5 font-bold">
             <span>SIGNAL :</span>
             <span className="flex gap-0.5 items-center">
@@ -548,7 +549,7 @@ export default function MainLandingPage({ onStartGame, onResetState }: MainLandi
             <span className="text-[#8faf2a]/85 font-black animate-pulse">INACTIVE</span>
           </div>
         </div>
-        <div className="font-mono text-zinc-500/80 uppercase leading-relaxed text-[12px] tracking-[0.2em] font-medium text-right">
+        <div className="font-mono text-zinc-500/80 uppercase leading-relaxed tracking-[0.2em] font-medium text-right">
           <div>TAPE-33</div>
           <div>LOOP : {videoUrl === "SIMULATED_TRAILER" ? "008" : "USR"}</div>
         </div>
@@ -755,7 +756,7 @@ export default function MainLandingPage({ onStartGame, onResetState }: MainLandi
                 {/* Video Playback Element */}
                 {tapeInserted && videoUrl ? (
                   videoUrl === "SIMULATED_TRAILER" ? (
-                    <SimulationTrailerFeed currentTime={currentTime} />
+                    <SimulationTrailerFeed currentTime={currentTime} userName={userName} />
                   ) : (
                     <video
                       ref={videoRef}
@@ -1148,9 +1149,10 @@ function X(props: React.SVGProps<SVGSVGElement>) {
 // ==========================================
 interface SimulationTrailerFeedProps {
   currentTime: number;
+  userName?: string | null;
 }
 
-function SimulationTrailerFeed({ currentTime }: SimulationTrailerFeedProps) {
+function SimulationTrailerFeed({ currentTime, userName }: SimulationTrailerFeedProps) {
   const isPhase1 = currentTime >= 0 && currentTime < 5.5;
   const isPhase2 = currentTime >= 5.5 && currentTime < 13.0;
   const isPhase3 = currentTime >= 13.0 && currentTime < 18.5;
@@ -1242,7 +1244,7 @@ function SimulationTrailerFeed({ currentTime }: SimulationTrailerFeedProps) {
 
             <div className="absolute left-[30%] top-[45%] flex flex-col items-center">
               <span className="w-2.5 h-2.5 bg-[var(--ph-mid)] rounded-full animate-pulse-dot" />
-              <span className="text-[7.5px] bg-[#070904]/95 border border-dim/40 px-1 text-bright scale-90 uppercase mt-0.5 tracking-wider select-text">서은우_P1</span>
+              <span className="text-[7.5px] bg-[#070904]/95 border border-dim/40 px-1 text-bright scale-90 uppercase mt-0.5 tracking-wider select-text">{userName ? `${userName}_P1` : "플레이어_P1"}</span>
             </div>
 
             <div className="absolute left-[45%] top-[70%] flex flex-col items-center">

@@ -54,7 +54,7 @@ export default function QuestPanel({ state, currentRoomId }: QuestPanelProps) {
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-card border border-dim rounded-md shadow-lg p-5">
       {/* Title */}
-      <div className="text-xs text-bright font-black mb-4 flex items-center gap-2 border-b border-dim pb-2.5 uppercase tracking-widest">
+      <div className="text-sm text-bright font-black mb-4 flex items-center gap-2 border-b border-dim pb-2.5 uppercase tracking-widest">
         <AlertCircle className="w-4 h-4 text-bright" /> Security_Override_Ops.log
       </div>
 
@@ -108,12 +108,12 @@ export default function QuestPanel({ state, currentRoomId }: QuestPanelProps) {
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <span className={`text-base leading-none ${dotColorClass} ${dotAnimClass}`}>●</span>
-                  <span className="text-xs font-bold text-bright tracking-wider">
+                  <span className="text-[13px] md:text-[13.5px] font-bold text-bright tracking-wider">
                     {titlePrefix}{displayTitle}
                   </span>
                 </div>
                 {stateText && (
-                  <span className="text-[10px] text-bright font-black tracking-widest animate-pulse">
+                  <span className="text-[11.5px] md:text-xs text-bright font-black tracking-widest animate-pulse">
                     {stateText}
                   </span>
                 )}
@@ -129,7 +129,7 @@ export default function QuestPanel({ state, currentRoomId }: QuestPanelProps) {
                     transition={{ duration: 0.2, ease: "easeInOut" }}
                     className="overflow-hidden"
                   >
-                    <div className="mt-2.5 pt-2 border-t border-dim/20 text-xs text-mid leading-relaxed whitespace-pre-wrap flex flex-col gap-3">
+                    <div className="mt-2.5 pt-2 border-t border-dim/20 text-[12.5px] text-mid leading-relaxed whitespace-pre-wrap flex flex-col gap-3">
                       {status === 'solved' ? (
                         <div className="text-mid font-semibold">
                           {quest.solvedHint}
@@ -137,7 +137,7 @@ export default function QuestPanel({ state, currentRoomId }: QuestPanelProps) {
                       ) : (
                         <div className="flex flex-col gap-2.5">
                           {/* Rich concept objective */}
-                          <p className="text-mid/95 font-bold leading-relaxed border-l border-bright/20 pl-2">
+                          <p className="text-[12.5px] text-mid/95 font-bold leading-relaxed border-l-2 border-bright/30 pl-2.5">
                             {TACTICAL_OBJECTIVES[quest.id] || "분석 목표: 주변 장치 단서를 스캔해 보안 암호를 알아내어 장치를 정착하십시오."}
                           </p>
 
@@ -175,7 +175,7 @@ export default function QuestPanel({ state, currentRoomId }: QuestPanelProps) {
       </div>
 
       {/* Statistics */}
-      <div className="mt-4 pt-3 border-t border-dim flex items-center justify-between text-[11px] font-bold tracking-wider select-none font-mono">
+      <div className="mt-4 pt-3 border-t border-dim flex items-center justify-between text-xs font-bold tracking-wider select-none font-mono">
         <span className="uppercase text-dim">Task_Stats:</span>
         <div className="flex gap-4">
           <span style={{ color: "var(--ph-mid)" }}>

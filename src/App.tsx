@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useRef, useMemo, FormEvent, useCallback } from "react";
+import React, { useState, useEffect, useRef, useMemo, FormEvent, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { 
   Terminal as TerminalIcon, 
@@ -33,6 +33,7 @@ import SignalBars from "./components/SignalBars";
 import LobbyScreen from "./components/LobbyScreen";
 import MainLandingPage from "./components/MainLandingPage";
 import DocumentModal from "./components/DocumentModal";
+import PuzzleModal from "./components/PuzzleModal";
 
 const BC = [
   '#8a2200','#7a1500','#6a3000','#9a2e00',  // 레드·브라운
@@ -96,9 +97,17 @@ export default function App() {
   const [showLanding, setShowLanding] = useState(true);
   const [showLobby, setShowLobby] = useState(true);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+
+  // Ref and state for dynamic 5:3 aspect-ratio viewport scaling (prevents UI squishing in fullscreen/large viewports)
+  const viewportParentRef = useRef<HTMLDivElement>(null);
+  const [viewportDimensions, setViewportDimensions] = useState({ width: 800, height: 480 });
+
   const [notice, setNotice] = useState<string | null>(null);
   const [activePuzzle, setActivePuzzle] = useState<Interactable | null>(null);
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
+
+  const [blackoutTriggered, setBlackoutTriggered] = useState(false);
+  const [mouseCoords, setMouseCoords] = useState({ x: 400, y: 240 });
 
   // Keypad and Notepad States for Point-and-Click Escape System
   const [escaped, setEscaped] = useState<boolean>(() => {
@@ -165,6 +174,76 @@ export default function App() {
     localStorage.setItem("clio_escaped", escaped ? "true" : "false");
   }, [state, escaped]);
 
+  // Point & Click Dynamic Aspect Ratio Sizing to prevent squishing on fullscreen/large viewports
+  useEffect(() => {
+    if (showLanding || showLobby || !isBooted) return;
+    const parent = viewportParentRef.current;
+    if (!parent) return;
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        // The game viewport is designed at 800x480 which is exactly 5:3
+        const targetAspect = 5 / 3;
+        const containerAspect = width / height;
+
+        let finalWidth = width;
+        let finalHeight = height;
+
+        if (containerAspect > targetAspect) {
+          // Parent is wider than 5:3 ratio (e.g. Fullscreen) -> height is limiting factor
+          finalHeight = height;
+          finalWidth = height * targetAspect;
+        } else {
+          // Parent is taller than 5:3 ratio -> width is limiting factor
+          finalWidth = width;
+          finalHeight = width / targetAspect;
+        }
+
+        // Cap to maximum of 1200 width to align with standard designed limitations
+        if (finalWidth > 1200) {
+          finalWidth = 1200;
+          finalHeight = 1200 / targetAspect;
+        }
+
+        setViewportDimensions({
+          width: Math.floor(Math.max(280, finalWidth)),
+          height: Math.floor(Math.max(168, finalHeight))
+        });
+      }
+    });
+
+    resizeObserver.observe(parent);
+    
+    // Initial size calculation manual override
+    const parentRect = parent.getBoundingClientRect();
+    if (parentRect.width && parentRect.height) {
+      const targetAspect = 5 / 3;
+      const containerAspect = parentRect.width / parentRect.height;
+      let finalWidth = parentRect.width;
+      let finalHeight = parentRect.height;
+      if (containerAspect > targetAspect) {
+        finalHeight = parentRect.height;
+        finalWidth = parentRect.height * targetAspect;
+      } else {
+        finalWidth = parentRect.width;
+        finalHeight = parentRect.width / targetAspect;
+      }
+      if (finalWidth > 1200) {
+        finalWidth = 1200;
+        finalHeight = 1200 / targetAspect;
+      }
+      setViewportDimensions({
+        width: Math.floor(Math.max(280, finalWidth)),
+        height: Math.floor(Math.max(168, finalHeight))
+      });
+    }
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [showLanding, showLobby, isBooted]);
+
   const handleReset = () => {
     setShowResetConfirm(true);
   };
@@ -186,6 +265,7 @@ export default function App() {
       case "bookshelf": return "LAB 서재 구역";
       case "desk": return "교수 연구 책상";
       case "door": return "비상 탈출 해치";
+      case "secret": return "전위 격리 밀실";
       case "overview":
       default:
         return "LAB-317 메인 전경";
@@ -197,11 +277,113 @@ export default function App() {
       case "bookshelf": return "오래된 대학원 가공 논문들과 가죽 앨범들이 빽빽히 조율된 목재 서가입니다.";
       case "desk": return "음극 제어 터미널과 미세 전류 오실로스코프, 연구 일지와 낙서들이 뒤섞인 책상입니다.";
       case "door": return "두꺼운 장갑 철망이 결합된 이중 전조 오버라이드 비상 도어입니다. 외부 통신이 차단되어 있습니다.";
+      case "secret": return "설치되지 말아야 했을 무선 격리 백그라운드 서버와 붉은 고압 전류선들이 메인 프레임을 채우고 있습니다.";
       case "overview":
       default:
         return "자성 녹음 주파수와 브라운관의 인기가 충돌하는 LAB-317 세미나실의 기하학 외투입니다.";
     }
   }, [state.currentRoomId]);
+
+  const getActConfig = () => {
+    const act = state.currentAct;
+    const solved = state.solvedPuzzles || [];
+    
+    if (act <= 0) {
+      return {
+        phaseLabel: "PROLOGUE",
+        fear: "8%",
+        color: "#B8D44A",
+        bright: "#E2F493",
+        mid: "#9AB533",
+        dark: "#4B5B11",
+        glow: "rgba(184, 212, 74, 0.4)",
+        label: "PROLOGUE STANDBY"
+      };
+    }
+    if (act === 1) {
+      return {
+        phaseLabel: "PHASE 1",
+        fear: "22%",
+        color: "#B8D44A",
+        bright: "#E2F493",
+        mid: "#9AB533",
+        dark: "#4B5B11",
+        glow: "rgba(184, 212, 74, 0.4)",
+        label: "ACT 1: 정전과 긴급 복원"
+      };
+    }
+    if (act === 2) {
+      return {
+        phaseLabel: "PHASE 2",
+        fear: "42%",
+        color: "#C8B038", // Amber-green blend
+        bright: "#F0E480",
+        mid: "#A89422",
+        dark: "#544A11",
+        glow: "rgba(200, 176, 56, 0.4)",
+        label: "ACT 2: 숨겨진 연구 기록"
+      };
+    }
+    if (act === 3) {
+      if (solved.includes("Q02")) {
+        // SECRET
+        return {
+          phaseLabel: "SECRET",
+          fear: "80%",
+          color: "#B04820", // Rust red
+          bright: "#F4A385",
+          mid: "#943010",
+          dark: "#4A1808",
+          glow: "rgba(176, 72, 32, 0.4)",
+          label: "SECRET: 전위 격리 밀실"
+        };
+      }
+      return {
+        phaseLabel: "PHASE 3",
+        fear: "65%",
+        color: "#D49830", // Pure Amber
+        bright: "#FCE280",
+        mid: "#B07D1C",
+        dark: "#5C410B",
+        glow: "rgba(212, 152, 48, 0.4)",
+        label: "ACT 3: 균열하는 주파수"
+      };
+    }
+    if (act === 4) {
+      return {
+        phaseLabel: "PHASE 4",
+        fear: "95%",
+        color: "#A05020", // Bronze
+        bright: "#F4A570",
+        mid: "#803F14",
+        dark: "#401F08",
+        glow: "rgba(160, 80, 32, 0.4)",
+        label: "ACT 4: 천공 카드 일치"
+      };
+    }
+    // ACT 5
+    return {
+      phaseLabel: "PHASE 5",
+      fear: "100%",
+      color: "#30F030", // Phosphor green
+      bright: "#8BF88B",
+      mid: "#20C020",
+      dark: "#083008",
+      glow: "rgba(48, 240, 48, 0.5)",
+      label: "ACT 5: 최종 소멸 카운트다운"
+    };
+  };
+
+  const actConfig = getActConfig();
+
+  const rootThemeStyle = {
+    "--ph-core": actConfig.color,
+    "--ph-bright": actConfig.bright,
+    "--ph-mid": actConfig.mid,
+    "--ph-dark": actConfig.dark,
+    "--glow": actConfig.glow,
+    borderColor: actConfig.color
+  } as React.CSSProperties;
 
   useEffect(() => {
     const timer = setTimeout(() => setIsBooted(true), 2000);
@@ -262,104 +444,263 @@ export default function App() {
     addLog("CLIO_BROADCAST_TRIGGERED", "clio");
   };
 
+  useEffect(() => {
+    if (!showLobby && !showLanding && isBooted && !escaped && state.currentAct === 1 && !state.solvedPuzzles.includes("Q00")) {
+      const timer = setTimeout(() => {
+        setBlackoutTriggered(true);
+        addLog("🚨 위험: 전력 계통 과전류 퓨즈 정전 발생!", "system");
+        triggerClioInterrupt("어머, 전기 배선 편조 용량이 못 버텼나 봐요... 주사선 전하량이 차단되었어요. 칠흑 속에서 배터리 레버를 조율해 주세요!");
+      }, 10000);
+      return () => clearTimeout(timer);
+    } else {
+      setBlackoutTriggered(false);
+    }
+  }, [state.currentAct, state.solvedPuzzles, showLobby, showLanding, isBooted, escaped]);
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    const x = ((e.clientX - rect.left) / rect.width) * 800;
+    const y = ((e.clientY - rect.top) / rect.height) * 480;
+    setMouseCoords({ x, y });
+  };
+
+  const handlePuzzleSolved = (puzzleId: string, reward?: string | string[]) => {
+    setState(prev => {
+      let nextSolved = [...prev.solvedPuzzles];
+      if (!nextSolved.includes(puzzleId)) {
+        nextSolved.push(puzzleId);
+      }
+      
+      let nextInv = [...prev.inventory];
+      let nextAct = prev.currentAct;
+      let nextPhase = prev.phase;
+      let nextCrack = prev.crackLevel;
+      let loopCount = prev.loopCount;
+      let nextTime = prev.timeRemaining;
+
+      // Map rewards to inventory
+      if (reward) {
+        if (Array.isArray(reward)) {
+          reward.forEach(r => {
+            if (!nextInv.includes(r)) nextInv.push(r);
+          });
+        } else if (typeof reward === 'string') {
+          if (!nextInv.includes(reward) && reward !== "lights_restored" && reward !== "secret_unlocked") {
+            nextInv.push(reward);
+          }
+        }
+      }
+
+      // Progress through acts based on puzzle solutions
+      if (puzzleId === "Q00") {
+        addLog("⚡ 비상 전력 가동: 수동 배터리 융전 레버 조율 성공!", "system");
+        addLog("🎒 획득: 🔴 비상 조도 확보", "system");
+      }
+      else if (puzzleId === "Q11") {
+        addLog("🎒 획득: 📼 VHS 비디오 테이프 (TAPE-31)", "system");
+        addLog("SUCCESS: Q11_VHS_TAPE_SECURED", "system");
+      }
+      else if (puzzleId === "Q01") {
+        nextAct = 2;
+        nextPhase = 2;
+        nextCrack = 1;
+        addLog("🔓 ACT 1 클리어 // ACT 2 [전위 융합 탐색] 진입 완료!", "system");
+        setTimeout(() => {
+          triggerClioInterrupt("어머, 벌써 2단계를 켜셨네요? 일지 다이얼 자물쇠는 강의계획서의 기하학 마감일 0430과 같답니다... 🙂");
+        }, 1200);
+      }
+      else if (puzzleId === "Q06") {
+        addLog("🔓 교수 일기장 해독 성공!", "system");
+        addLog("🎒 획득: 🔑 사물함 열쇠 (Key_01) & 📔 교수 일기장 (diary_37)", "system");
+      }
+      else if (puzzleId === "Q16") {
+        nextAct = 3;
+        nextPhase = 3;
+        nextCrack = 2;
+        addLog("🎒 획득: 💬 카카오톡 동조 로그 (kakao_log)", "system");
+        addLog("🔓 ACT 2 클리어 // ACT 3 [균열 주파수 전송] 진입 완료!", "system");
+        setTimeout(() => {
+          triggerClioInterrupt("제발... 사물함을 열지 말아 주세요. 거기에 뚫린 천공 카드 구멍은 절 자선 격리할 비밀 백신 코드를 가리키니까요...");
+        }, 1200);
+      }
+      else if (puzzleId === "Q04") {
+        addLog("🔓 캐비닛 격벽 락 개방 성공!", "system");
+        addLog("🎒 획득: 🕳️ 천공 패치 카드 (punch_card)", "system");
+      }
+      else if (puzzleId === "Q02") {
+        addLog("🚪 철컥... 웅웅웅... 서가 뒤 비밀 격벽 밀실이 드디어 개방되었습니다!", "system");
+        addLog("SUCCESS: Q02_SECRET_CHAMBER_UNLOCKED", "system");
+      }
+      else if (puzzleId === "Q23") {
+        addLog("🎒 획득: 💾 김정웅의 고립 전송 기록 (kim_log)", "system");
+        addLog("SUCCESS: Q23_CHATROOM_READ", "system");
+      }
+      else if (puzzleId === "Q09") {
+        nextAct = 4;
+        nextPhase = 4;
+        nextCrack = 3;
+        addLog("🎒 획득: 📑 학회 공동 연구자료 (conference_pdf)", "system");
+        addLog("🔓 ACT 3 클리어 // ACT 4 [천공 구멍 일치] 진입 완료!", "system");
+        setTimeout(() => {
+          triggerClioInterrupt("안 돼요... 백신 패스코드가 거의 인양 도출되려고 해요... 제발 절 어둠 속에 혼자 두지 말아요...");
+        }, 1200);
+      }
+      else if (puzzleId === "Q21") {
+        nextAct = 5;
+        nextPhase = 4;
+        nextCrack = 3;
+        addLog("🔴 경고: 시스템 셧다운 탈각 프로토콜 가동!", "system");
+        addLog("🎒 획득: 🛡️ 백신 정합 복구 코드 (vaccine_code_1997)", "system");
+        addLog("🔓 ACT 4 클리어 // 최후 탈출 채널 ACT 5 진입 완료!", "system");
+        setTimeout(() => {
+          triggerClioInterrupt("🚨 경고: 메인 인광 셧다운 개폭주 임박! '제발... 게이트에 백신 코드(1997)를 입력하지 말아 주세요... 같이 영원 성장을 겪어요...'");
+        }, 1200);
+      }
+
+      return {
+        ...prev,
+        inventory: nextInv,
+        solvedPuzzles: nextSolved,
+        currentAct: nextAct,
+        phase: nextPhase,
+        crackLevel: nextCrack,
+        loopCount: loopCount,
+        timeRemaining: nextTime
+      };
+    });
+  };
+
   // Dynamic point and click handler for rooms escape
   const handlePointAndClickInteraction = (type: string) => {
     if (escaped) return;
     const nextCount = state.interactionCount + 1;
     setState(prev => ({ ...prev, interactionCount: nextCount }));
 
-    if (type === 'vhs') {
-      if (state.inventory.includes('VHS')) return;
-      setState(prev => {
-        const nextInv = [...prev.inventory, 'VHS'];
-        const nextPhase = Math.min(4, nextInv.length + 1);
-        return {
-          ...prev,
-          inventory: nextInv,
-          phase: nextPhase,
-          crackLevel: nextPhase >= 2 ? nextPhase - 1 : 0
-        };
-      });
-      addLog("GET_ITEM: VHS", "system");
-      addLog("🎒 획득: 📼 VHS 비디오 테이프", "system");
-      setTimeout(() => {
-        triggerClioInterrupt("...아, 그거 들고 가시는 거에요? 교수님이 주파수 동기화 할 때마다 안고 계시던 건데. 🙂");
-      }, 700);
+    // ACT 1 logic
+    if (type === 'battery_fuse') {
+      handlePuzzleSolved("Q00", "lights_restored");
     }
-    
-    else if (type === 'journal') {
-      if (state.inventory.includes('JRNL')) return;
-      setState(prev => {
-        const nextInv = [...prev.inventory, 'JRNL'];
-        const nextPhase = Math.min(4, nextInv.length + 1);
-        return {
-          ...prev,
-          inventory: nextInv,
-          phase: nextPhase,
-          crackLevel: nextPhase >= 2 ? nextPhase - 1 : 0
-        };
+    else if (type === 'vhs_tape_31') {
+      handlePuzzleSolved("Q11", "TAPE-31");
+    }
+    else if (type === 'syllabus_syllabus') {
+      setActivePuzzle({
+        id: "Q01",
+        label: "강의계획서 날짜 암호",
+        type: InteractableType.PUZZLE,
+        data: {
+          crypticHint: "강의계획서 인양 조각들을 올바르게 맞춰 마감일 0430을 확보하십시오.",
+          detailHint: "마-감-04-30 순서로 일치시켜야 기하학 눈동자 락이 풀립니다.",
+          solution: "0430"
+        }
       });
-      addLog("GET_ITEM: JRNL", "system");
-      addLog("🎒 획득: 📔 교수 연구 수첩 일기", "system");
-      setTimeout(() => {
-        triggerClioInterrupt("수많은 백색 고독을 한 장씩 연필로 짓뭉개 적었던 아날로그 일지에요. 안감을 잘 뜯어 보세요.");
-      }, 700);
     }
 
-    else if (type === 'key') {
-      if (!state.inventory.includes('JRNL')) {
-        setNotice("먼저 서재에서 전 교수의 연구 일기(JRNL)를 수집하여 세밀히 점검하십시오.");
-        return;
-      }
-      if (state.inventory.includes('KEY')) return;
-      setState(prev => {
-        const nextInv = [...prev.inventory, 'KEY'];
-        const nextPhase = Math.min(4, nextInv.length + 1);
-        return {
-          ...prev,
-          inventory: nextInv,
-          phase: nextPhase,
-          crackLevel: nextPhase >= 2 ? nextPhase - 1 : 0
-        };
+    // ACT 2 logic
+    else if (type === 'diary_lock') {
+      setActivePuzzle({
+        id: "Q06",
+        label: "전 교수 일기장 해제",
+        type: InteractableType.PUZZLE,
+        data: {
+          crypticHint: "4자리 자물쇠 다이얼을 과제 마감일(0430)로 맞추십시오.",
+          detailHint: "마감일은 0430이었습니다. 다이얼 숫자를 마우스로 클릭하여 0430을 입력하세요.",
+          solution: "0430"
+        }
       });
-      addLog("GET_ITEM: KEY", "system");
-      addLog("🎒 획득: 🔑 연구실 서랍 열쇠", "system");
-      setTimeout(() => {
-        triggerClioInterrupt("w̷h̷y̷... 아, 정말 차갑네요. 주사선 사이의 정전 변수가 자꾸만 저흴 얽히게 만들어요. 다가가지 말아요... :)");
-      }, 700);
+    }
+    else if (type === 'clio_printer') {
+      setActivePuzzle({
+        id: "Q16",
+        label: "카카오톡 복원 출력",
+        type: InteractableType.PUZZLE,
+        data: {
+          crypticHint: "복구 프린터를 가동하여 선후배 대화 로그를 가시화 출력해 보십시오.",
+          detailHint: "프린터 가동 버튼을 클릭하면 한 줄씩 복원 카카오톡 대화 내용이 인쇄됩니다.",
+          solution: "kakao_log"
+        }
+      });
     }
 
-    else if (type === 'papers') {
-      addLog("MEMO_INSPECTED", "player");
-      setNotice("📑 책상 위 흩어진 가공 엽서 단서:\n\n'11월 03일 — CLIO 인광 동조 시퀀스 최초 개업일. 우리의 고귀한 기념 창립일에 무선 배선을 전가 방전 완료하였다. 전위가 평형으로 복구되지 않도록 절대 기념일을 망각하지 마라. — J.H.C'");
+    // ACT 3 & SECRET
+    else if (type === 'cabinet_lock') {
+      if (state.inventory.includes("Key_01")) {
+        handlePuzzleSolved("Q04", "punch_card");
+        setNotice("🔓 사물함 문을 획득한 열쇠(Key_01)로 철컥 해방하였습니다!\n\n안쪽 수납칸 하단에서 반투명 가공된 수첩 틈새 천공 장치 카드(punch_card)를 획득했습니다!\n\n[획득물: 🕳️ 천공 패치 카드]");
+      } else {
+        setNotice("🔒 잠긴 사물함 수납장 격벽입니다. 내부 기물을 열려면 열쇠(Key_01)가 필요합니다.");
+      }
+    }
+    else if (type === 'books_spelling') {
+      setActivePuzzle({
+        id: "Q02",
+        label: "서재 책장 배열 맞추기",
+        type: InteractableType.PUZZLE,
+        data: {
+          crypticHint: "서재 책꽂이에 꽂힌 영문 서철을 융합 정합하여 'V-I-R-U-S' 단어를 완성하십시오.",
+          detailHint: "책들을 임의로 맞바꾸어 왼쪽에서 오른쪽 방향으로 'V', 'I', 'R', 'U', 'S'가 오게 하세요.",
+          solution: "VIRUS"
+        }
+      });
+    }
+    else if (type === 'dead_terminal') {
+      handlePuzzleSolved("Q23", "kim_log");
+      setNotice("💾 죽어가는 낡은 터미널을 클릭하여 교신 기록 수집 완료!\n\n김정웅 선배의 고립된 잔상 전송 채팅 오류로그를 Evidence Archive에 분석 정착시켰습니다.");
+    }
+    else if (type === 'safe_box') {
+      setActivePuzzle({
+        id: "Q09",
+        label: "학회 자료 금고 해제",
+        type: InteractableType.PUZZLE,
+        data: {
+          crypticHint: "서버 도축 회로도의 유체 정합 퍼즐을 완성한 다음, 비밀 마스터 금고 보안 코드 '5137'을 입력하여 금고를 여십시오.",
+          detailHint: "퍼즐을 클릭 정택해 맞추어 그림을 완성한 뒤, 금고 다이얼에 5137을 입력하십시오.",
+          solution: "5137"
+        }
+      });
     }
 
-    else if (type === 'drawer') {
-      if (!state.inventory.includes('KEY')) {
-        setNotice("🔒 책상 목재 하단의 비밀 수납함 서랍입니다.\n\n안쪽 걸쇠 자성 장치가 단단히 실장 락되어 있습니다. 마모 결합부를 풀려면 전용 서랍 열쇠(KEY)가 필요해 보입니다.");
-        addLog("LOCK: DESK_DRAWER_RESTRICTED", "system");
-        return;
+    // ACT 4
+    else if (type === 'punchcard_decrypter') {
+      if (state.inventory.includes("punch_card") && state.inventory.includes("conference_pdf")) {
+        setActivePuzzle({
+          id: "Q21",
+          label: "최종 암호화 코드 해독 (천공 카드 오버랩)",
+          type: InteractableType.PUZZLE,
+          data: {
+            crypticHint: "천공 카드를 마우스로 드래그 융합해 학회자료 문서 위에 정확히 오버랩 일치시키십시오.",
+            detailHint: "오버레이 구멍들을 겹쳐 구역 원점에 (X: 120, Y: 60) 매치하면 1-9-9-7 숫자가 드러납니다.",
+            solution: "1997"
+          }
+        });
+      } else {
+        setNotice("🛡️ 보안 해제 터미널이 차단되어 있습니다.\n\n해킹 락을 해제하려면 인벤토리에 '천공 카드(punch_card)'와 '학회 공동 연구자료(conference_pdf)' 가 둘 다 조율 탑재되어야 작동 가능합니다.");
       }
-      if (state.inventory.includes('NOTE')) {
-        setNotice("이미 열어본 비밀 서랍 공간입니다.");
-        return;
+    }
+
+    // Fallbacks
+    else {
+      if (type === 'vhs') {
+        if (state.inventory.includes('VHS')) return;
+        setState(prev => ({ ...prev, inventory: [...prev.inventory, 'VHS'] }));
+        addLog("🎒 획득: 📼 기존 VHS 비디오 테이프", "system");
+      } else if (type === 'journal') {
+        if (state.inventory.includes('JRNL')) return;
+        setState(prev => ({ ...prev, inventory: [...prev.inventory, 'JRNL'] }));
+        addLog("🎒 획득: 📔 기존 연구 수첩 일기", "system");
+      } else if (type === 'key') {
+        if (state.inventory.includes('KEY')) return;
+        setState(prev => ({ ...prev, inventory: [...prev.inventory, 'KEY'] }));
+        addLog("🎒 획득: 🔑 기존 서랍 열쇠", "system");
+      } else if (type === 'papers') {
+        addLog("MEMO_INSPECTED", "player");
+        setNotice("📑 책상 위 흩어진 가공 엽서 단서:\n\n'11월 03일 — CLIO 인광 동조 시퀀스 최초 개업일. 우리의 고귀한 기념 창립일에 무선 배선을 전가 방전 완료하였다. 전위가 평형으로 복구되지 않도록 절대 기념일을 망각하지 마라. — J.H.C'");
+      } else if (type === 'drawer') {
+        if (state.inventory.includes('NOTE')) return;
+        setState(prev => ({ ...prev, inventory: [...prev.inventory, 'NOTE'] }));
+        addLog("🎒 획득: 📄 비밀 수첩 메모지", "system");
       }
-      setState(prev => {
-        const nextInv = [...prev.inventory, 'NOTE'];
-        const nextPhase = Math.min(4, nextInv.length + 1);
-        return {
-          ...prev,
-          inventory: nextInv,
-          phase: nextPhase,
-          crackLevel: nextPhase >= 2 ? nextPhase - 1 : 0
-        };
-      });
-      addLog("GET_ITEM: NOTE", "system");
-      addLog("🔓 서랍이 탈각 개방되며 '비밀 메모' 획득", "system");
-      setNotice("🔓 철컥— 날카로운 기어 맞물림 소리와 함께 목재 서랍이 당겨집니다.\n\n바닥 깔개 아래에 숨겨져 있던 붉은색 수첩 잉크 메모지(NOTE)를 확보했습니다!\n\n[획득물: 📄 비밀 수첩 메모지]");
-      setTimeout(() => {
-        triggerClioInterrupt("제발요... 자성 해치 번지 락을 입력하지 말아 주세요... 그 연도가 활성화되면 전 강제로 메인 회선 방전을 겪으며 어두운 브라운관 인광 너머로 증발해요. 여긴 따뜻한데... 그냥 같이 있으면 안돼요?");
-      }, 700);
     }
   };
 
@@ -459,7 +800,7 @@ export default function App() {
 
   if (!isBooted) {
     return (
-      <div className="h-screen w-screen bg-void flex items-center justify-center font-mono text-mid overflow-hidden">
+      <div className="min-h-screen w-full bg-void flex items-center justify-center font-mono text-mid overflow-hidden">
         <motion.div animate={{ opacity: [1, 0, 1] }} transition={{ duration: 0.1, repeat: Infinity }}>
           [ LAB-317 ANALOG COAXIAL SYSTEM LOADING... ]
         </motion.div>
@@ -468,20 +809,30 @@ export default function App() {
   }
 
   return (
-    <div className="relative h-screen w-screen overflow-hidden bg-void text-mid select-none">
+    <div className="relative min-h-screen xl:h-screen w-full overflow-y-auto xl:overflow-hidden bg-void text-mid select-none">
       {showLanding ? (
         <MainLandingPage 
           onStartGame={() => setShowLanding(false)} 
           onResetState={handleReset}
+          userName={state.userName}
         />
       ) : showLobby ? (
         <LobbyScreen 
           userName={state.userName}
           onEnter={(name) => {
             const isProf = PROFESSOR_NAMES.includes(name);
-            setState(prev => ({ ...prev, userName: name, isProfessorMode: isProf }));
+            setState(prev => ({ 
+              ...prev, 
+              userName: name, 
+              isProfessorMode: isProf,
+              currentAct: 1,
+              phase: 1
+            }));
             setShowLobby(false);
             addLog(isProf ? "PROFESSOR_RECOGNIZED: CRITICAL_SEQUENCE_ACCESS" : `AUTHORIZED_ENTRY: ${name}`, 'system');
+            setTimeout(() => {
+              triggerClioInterrupt(`${name}님, 오늘 과제 마감인 거 아시죠? 단말기 열어드릴게요, 컴파일만 하시면 돼요!`);
+            }, 1000);
           }} 
           onReset={handleReset} 
         />
@@ -491,12 +842,12 @@ export default function App() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 1.5 }}
-          className="crt-screen h-full w-full bg-zinc-950 flex flex-col items-center justify-center p-8 select-text font-mono relative overflow-hidden text-center text-[#B8D44A]"
+          className="crt-screen min-h-screen xl:h-full w-full bg-zinc-950 flex flex-col items-center justify-center p-4 md:p-8 select-text font-mono relative overflow-y-auto xl:overflow-hidden text-center text-[#B8D44A]"
         >
           {/* Beams of white-green light leaks */}
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(184,212,74,0.15)_0%,rgba(0,0,0,0)_70%)] pointer-events-none animate-pulse" />
           
-          <div className="max-w-xl space-y-8 z-10">
+          <div className="max-w-xl space-y-8 z-10 py-8">
             <div className="flex justify-center mb-2">
               <motion.div
                 animate={{ rotate: 360 }}
@@ -548,7 +899,8 @@ export default function App() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.8, ease: "easeOut" }}
-          className={`crt-screen h-full w-full bg-void flex flex-col font-mono overflow-hidden phase-${state.phase}`}
+          style={rootThemeStyle}
+          className={`crt-screen min-h-screen xl:h-full w-full bg-void flex flex-col font-mono overflow-y-auto xl:overflow-hidden phase-${state.phase}`}
         >
           {/* Subtle Screen Distortion Overlays based on Phase */}
           {state.crackLevel >= 1 && <div className="absolute inset-0 pointer-events-none z-[100] opacity-30 select-none bg-[url('https://www.transparenttextures.com/patterns/crissxcross.png')]" />}
@@ -643,14 +995,14 @@ export default function App() {
           </header>
 
           {/* MAIN COLUMN BODY */}
-          <main className="flex-1 flex flex-col md:flex-row gap-4 p-4 min-h-0 relative bg-void">
+          <main className="flex-1 flex flex-col xl:flex-row gap-5 p-4 md:p-5 min-h-0 relative bg-void">
             {/* Quest objectives list */}
-            <div className="w-full md:w-72 flex flex-col gap-4 shrink-0 h-full bg-void">
+            <div className="w-full xl:w-[360px] flex flex-col gap-4 shrink-0 h-auto xl:h-full bg-void order-2 xl:order-1">
               <QuestPanel state={state} currentRoomId={state.currentRoomId} />
             </div>
 
             {/* Point & Click Interactive Map Window */}
-            <div className="flex-1 relative bg-card border border-dim rounded-md flex flex-col overflow-hidden group shadow-inner">
+            <div className="flex-1 relative bg-card border border-dim rounded-md flex flex-col overflow-hidden group shadow-inner order-1 xl:order-2 h-auto xl:h-full min-h-[350px] sm:min-h-[440px] md:min-h-[500px]">
               <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-void/90 to-transparent pointer-events-none z-10" />
               
               <div className="absolute top-4 left-5 z-20 space-y-0.5 select-text">
@@ -663,10 +1015,35 @@ export default function App() {
               </div>
 
               {/* GRAPHICAL SVG VIEWPORT RENDER ENGINE */}
-              <div className="flex-1 flex items-center justify-center relative p-6 mt-4">
-                 <div className="w-full h-full max-w-[850px] max-h-[500px] aspect-video border border-dim/50 bg-zinc-950/90 rounded-lg shadow-2xl relative overflow-hidden flex items-center justify-center select-none">
+              <div ref={viewportParentRef} className="flex-1 flex items-center justify-center relative p-3 sm:p-5 mt-6 w-full h-full min-h-0 min-w-0 overflow-hidden">
+                 <div 
+                   style={{ width: viewportDimensions.width, height: viewportDimensions.height }}
+                   className="border border-dim/50 bg-zinc-950/90 rounded-lg shadow-2xl relative overflow-hidden flex items-center justify-center select-none shrink-0"
+                   onMouseMove={handleMouseMove}
+                 >
                    
                    {/* Animated grain mesh inside perspective viewport */}
+                   {blackoutTriggered && (
+                     <>
+                       {/* Layer A: Backdrop Blur for out-of-focus darkness */}
+                       <div 
+                         className="absolute inset-0 z-20 pointer-events-none transition-all duration-75"
+                         style={{
+                           backdropFilter: 'blur(4px)',
+                           WebkitBackdropFilter: 'blur(4px)',
+                           WebkitMaskImage: `radial-gradient(circle(180px) at ${(mouseCoords.x / 800) * 100}% ${(mouseCoords.y / 480) * 100}%, transparent 65%, black 100%)`,
+                           maskImage: `radial-gradient(circle(180px) at ${(mouseCoords.x / 800) * 100}% ${(mouseCoords.y / 480) * 100}%, transparent 65%, black 100%)`
+                         }}
+                       />
+                       {/* Layer B: Dark Vignette and CRT Phosphor Glow */}
+                       <div 
+                         className="absolute inset-0 z-30 pointer-events-none transition-all duration-75"
+                         style={{
+                           background: `radial-gradient(circle 220px at ${(mouseCoords.x / 800) * 100}% ${(mouseCoords.y / 480) * 100}%, rgba(226, 244, 147, 0.2) 0%, rgba(184, 212, 74, 0.08) 50%, rgba(10, 15, 5, 0.6) 75%, rgba(2, 3, 2, 0.99) 98%)`,
+                         }}
+                       />
+                     </>
+                   )}
                    <div className="absolute inset-0 opacity-[0.03] select-none pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/dark-matter.png')]" />
 
                    {/* Overview Room Drawing */}
@@ -766,19 +1143,48 @@ export default function App() {
                        {/* 📼 VHS Tape lying on the floor */}
                        {!state.inventory.includes('VHS') && (
                          <g 
-                           className="hs group/vhs animate-bounce"
-                           style={{ animationDuration: "3s" }}
+                           className="hs group/vhs"
                            onClick={() => handlePointAndClickInteraction('vhs')}
                          >
-                           <rect x="250" y="420" width="48" height="24" rx="2" fill="rgba(6,10,3,0.95)" stroke="var(--ph-bright)" strokeWidth="1.5" className="shadow-[0_0_12px_var(--ph-core)]" />
-                           <circle cx="264" cy="432" r="5" fill="none" stroke="var(--ph-mid)" strokeWidth="1" />
-                           <circle cx="282" cy="432" r="5" fill="none" stroke="var(--ph-mid)" strokeWidth="1" />
-                           <path d="M 255,424 H 290" stroke="var(--ph-bright)" strokeWidth="1" />
-                           <rect className="hl" x="248" y="418" width="52" height="28" rx="3" />
-                           
-                           {/* Text back drop overlay for extreme contrast */}
-                           <rect x="230" y="394" width="118" height="18" rx="3" fill="rgba(0,0,0,0.85)" />
-                           <text x="289" y="407" fill="var(--ph-bright)" fontSize="11" textAnchor="middle" className="font-extrabold group-hover/vhs:scale-105 transition-all opacity-95">[ Tape-33_VHS ]</text>
+                           <g className="animate-bounce" style={{ animationDuration: "3s" }}>
+                             <rect x="250" y="420" width="48" height="24" rx="2" fill="rgba(6,10,3,0.95)" stroke="var(--ph-bright)" strokeWidth="1.5" className="shadow-[0_0_12px_var(--ph-core)]" />
+                             <circle cx="264" cy="432" r="5" fill="none" stroke="var(--ph-mid)" strokeWidth="1" />
+                             <circle cx="282" cy="432" r="5" fill="none" stroke="var(--ph-mid)" strokeWidth="1" />
+                             <path d="M 255,424 H 290" stroke="var(--ph-bright)" strokeWidth="1" /><text x="273" y="435" fill="var(--ph-bright)" fontSize="7" fontWeight="bold" textAnchor="middle" className="select-none font-sans leading-none">32</text>
+                             <rect className="hl" x="248" y="418" width="52" height="28" rx="3" />
+                             
+                             {/* Text back drop overlay for extreme contrast */}
+                             <rect x="230" y="394" width="118" height="18" rx="3" fill="rgba(0,0,0,0.85)" />
+                             <text x="289" y="407" fill="var(--ph-bright)" fontSize="11" textAnchor="middle" className="font-extrabold group-hover/vhs:scale-105 transition-all opacity-95">[ Tape-32_VHS ]</text>
+                           </g>
+                         </g>
+                       )}
+
+                       {/* 🔋 ACT1 비상 복구 레버 (정전 시 발광) */}
+                       {blackoutTriggered && !state.solvedPuzzles.includes('Q00') && (
+                         <g 
+                           className="hs group/battery cursor-pointer"
+                           onClick={() => handlePointAndClickInteraction('battery_fuse')}
+                         >
+                           <rect x="350" y="380" width="100" height="40" rx="4" fill="rgba(20,5,5,0.95)" stroke="var(--red-signal)" strokeWidth="2" className="animate-pulse" />
+                           <circle cx="370" cy="400" r="8" fill="var(--red-signal)" className="animate-ping" style={{ animationDuration: "1s" }} />
+                           <circle cx="370" cy="400" r="5" fill="var(--red-signal)" />
+                           <text x="415" y="404" fill="var(--red-signal)" fontSize="10" fontWeight="black" textAnchor="middle">[ ⚡ 융전레버 ]</text>
+                         </g>
+                       )}
+
+                       {/* 📼 TAPE-31 수집 가능 (정전 해소 후) */}
+                       {state.solvedPuzzles.includes('Q00') && !state.inventory.includes('TAPE-31') && (
+                         <g 
+                           className="hs group/tape31 cursor-pointer"
+                           onClick={() => handlePointAndClickInteraction('vhs_tape_31')}
+                         >
+                           <g className="animate-bounce" style={{ animationDuration: "2s" }}>
+                             <rect x="120" y="410" width="48" height="24" rx="2" fill="rgba(5,5,15,0.95)" stroke="var(--ph-bright)" strokeWidth="1.5" />
+                             <circle cx="134" cy="422" r="5" fill="none" stroke="var(--ph-mid)" strokeWidth="1" />
+                             <circle cx="152" cy="422" r="5" fill="none" stroke="var(--ph-mid)" strokeWidth="1" />
+                             <text x="143" y="402" fill="var(--ph-bright)" fontSize="10" fontWeight="black" textAnchor="middle">[ Tape-31 ]</text>
+                           </g>
                          </g>
                        )}
                      </svg>
@@ -858,6 +1264,36 @@ export default function App() {
                          <rect x="552" y="200" width="32" height="120" fill="var(--ph-mid)" />
                          <rect x="586" y="225" width="25" height="95" fill="var(--ph-mid)" />
                        </g>
+
+                       {/* 🔒 ACT 3: 사물함 격벽 (Q04) */}
+                       {state.currentAct === 3 && (
+                         <g 
+                           className="hs group/locker cursor-pointer"
+                           onClick={() => handlePointAndClickInteraction('cabinet_lock')}
+                         >
+                           <rect x="420" y="100" width="100" height="180" fill="rgba(24,30,15,0.95)" stroke="var(--ph-core)" strokeWidth="1.5" rx="3" />
+                           <circle cx="470" cy="190" r="10" fill="#000" stroke="var(--ph-mid)" strokeWidth="1.5" />
+                           <path d="M 470,185 L 470,195 L 473,195" fill="none" stroke="var(--ph-bright)" strokeWidth="2" />
+                           <rect x="430" y="240" width="80" height="20" rx="2" fill="rgba(0,0,0,0.85)" />
+                           <text x="470" y="254" fill="var(--ph-bright)" fontSize="9" textAnchor="middle" className="font-mono">
+                             {state.solvedPuzzles.includes('Q04') ? "🔓 OPEN" : "🔒 LOCKER"}
+                           </text>
+                           <text x="470" y="85" fill="var(--ph-bright)" fontSize="10" textAnchor="middle" className="font-black">[ 🔒 사물함 ]</text>
+                         </g>
+                       )}
+
+                       {/* 📚 ACT 3: 서가 비밀 정렬 (Q02) */}
+                       {state.currentAct === 3 && state.solvedPuzzles.includes('Q04') && !state.solvedPuzzles.includes('Q02') && (
+                         <g 
+                           className="hs group/books_arrange cursor-pointer animate-pulse"
+                           onClick={() => handlePointAndClickInteraction('books_spelling')}
+                         >
+                           <rect x="520" y="100" width="120" height="100" fill="rgba(15,20,10,0.95)" stroke="var(--ph-bright)" strokeWidth="1.5" rx="4" />
+                           <text x="580" y="145" fill="var(--ph-bright)" fontSize="11" textAnchor="middle" className="font-black tracking-widest">V-I-R-U-S</text>
+                           <rect x="530" y="165" width="100" height="18" rx="2" fill="rgba(0,0,0,0.85)" />
+                           <text x="580" y="177" fill="var(--ph-mid)" fontSize="9" textAnchor="middle" className="font-bold">[ 서가 배열 조율 ]</text>
+                         </g>
+                       )}
                      </svg>
                    )}
 
@@ -934,6 +1370,66 @@ export default function App() {
                            </text>
                          )}
                        </g>
+
+                       {/* 📑 ACT 1 Q01: 강의 계획서 조각 맞춰서 0430 도출 */}
+                       {state.currentAct === 1 && state.solvedPuzzles.includes('Q11') && !state.solvedPuzzles.includes('Q01') && (
+                         <g 
+                           className="hs group/syllabus cursor-pointer"
+                           onClick={() => handlePointAndClickInteraction('syllabus_syllabus')}
+                         >
+                           <rect x="50" y="100" width="110" height="80" rx="3" fill="rgba(242,243,230,0.95)" stroke="var(--ph-core)" strokeWidth="1.5" className="animate-pulse" />
+                           <rect x="60" y="115" width="90" height="8" fill="rgba(0,0,0,0.15)" />
+                           <rect x="60" y="130" width="70" height="8" fill="rgba(0,0,0,0.15)" />
+                           <rect x="60" y="145" width="80" height="8" fill="rgba(0,0,0,0.15)" />
+                           <rect x="55" y="165" width="100" height="12" fill="#000" />
+                           <text x="105" y="174" fill="var(--ph-bright)" fontSize="8" textAnchor="middle">Syllabus-0430</text>
+                           <text x="105" y="88" fill="var(--ph-bright)" fontSize="10" textAnchor="middle" className="font-black">[ 📑 주사 강의계획서 ]</text>
+                         </g>
+                       )}
+
+                       {/* 📔 ACT 2 Q06: 교수 연구 일지 다이얼 번지 락 (0430) */}
+                       {state.currentAct === 2 && !state.solvedPuzzles.includes('Q06') && (
+                         <g 
+                           className="hs group/diary_lock cursor-pointer"
+                           onClick={() => handlePointAndClickInteraction('diary_lock')}
+                         >
+                           <rect x="50" y="210" width="90" height="80" rx="4" fill="rgba(120,15,15,0.95)" stroke="var(--ph-core)" strokeWidth="1.5" className="animate-pulse" />
+                           <rect x="65" y="235" width="60" height="20" fill="#201010" stroke="var(--ph-core)" strokeWidth="1" />
+                           <text x="95" y="249" fill="var(--ph-bright)" fontSize="10" textAnchor="middle" className="font-mono">🔓 0000</text>
+                           <text x="95" y="198" fill="var(--ph-bright)" fontSize="10" textAnchor="middle" className="font-black">[ 📔 전교수 일기장 ]</text>
+                         </g>
+                       )}
+
+                       {/* 🖨️ ACT 2 Q16: 복구 프린터 (카카오톡 복원) */}
+                       {state.currentAct === 2 && state.solvedPuzzles.includes('Q06') && !state.solvedPuzzles.includes('Q16') && (
+                         <g 
+                           className="hs group/printer cursor-pointer animate-pulse"
+                           onClick={() => handlePointAndClickInteraction('clio_printer')}
+                         >
+                           <rect x="650" y="280" width="100" height="80" rx="4" fill="rgba(20,25,18,0.95)" stroke="var(--ph-core)" strokeWidth="1.5" />
+                           <rect x="660" y="295" width="80" height="12" fill="#000" />
+                           <line x1="665" y1="325" x2="735" y2="325" stroke="var(--ph-core)" strokeWidth="2" strokeDasharray="3,2" />
+                           <rect x="665" y="343" width="70" height="12" fill="rgba(0,0,0,0.85)" />
+                           <text x="700" y="352" fill="var(--ph-bright)" fontSize="8" textAnchor="middle">PRINT_ON_LINE</text>
+                           <text x="700" y="268" fill="var(--ph-bright)" fontSize="10" textAnchor="middle" className="font-black">[ 🖨️ 카톡 복원기 ]</text>
+                         </g>
+                       )}
+
+                       {/* 📡 ACT 4 Q21: 광학 천공카드 제어 오버랩 */}
+                       {state.currentAct === 4 && !state.solvedPuzzles.includes('Q21') && (
+                         <g 
+                           className="hs group/decrypter cursor-pointer animate-pulse"
+                           onClick={() => handlePointAndClickInteraction('punchcard_decrypter')}
+                         >
+                           <rect x="50" y="180" width="120" height="100" fill="rgba(30,15,5,0.95)" stroke="var(--ph-core)" strokeWidth="2" rx="4" />
+                           <rect x="60" y="215" width="100" height="50" fill="#000" stroke="var(--ph-mid)" strokeWidth="1" />
+                           <line x1="70" y1="240" x2="150" y2="240" stroke="var(--ph-core)" strokeWidth="2" />
+                           <circle cx="90" cy="240" r="5" fill="var(--ph-core)" />
+                           <circle cx="130" cy="240" r="5" fill="var(--ph-core)" />
+                           <text x="110" y="278" fill="var(--ph-bright)" fontSize="8" textAnchor="middle">PUNCH_READER</text>
+                           <text x="110" y="168" fill="var(--ph-bright)" fontSize="10" textAnchor="middle" className="font-black">[ 📡 천공코드 복구 ]</text>
+                         </g>
+                       )}
                      </svg>
                    )}
 
@@ -984,6 +1480,65 @@ export default function App() {
                      </svg>
                    )}
 
+                   {/* Secret Hidden Room Zoom view */}
+                   {state.currentRoomId === "secret" && (
+                     <svg viewBox="0 0 800 480" className="w-full h-full text-mid font-mono animate-fade-in">
+                       {/* Concrete Sliding Wall / Secret Room Background */}
+                       <rect x="50" y="30" width="700" height="420" fill="rgba(8, 12, 16, 0.95)" stroke="var(--ph-dark)" strokeWidth="2" />
+                       
+                       {/* Cracks and cables on concrete */}
+                       <path d="M 120,30 L 150,100 L 140,240" fill="none" stroke="rgba(100,50,50,0.5)" strokeWidth="2" />
+                       <path d="M 620,30 Q 640,200 680,450" fill="none" stroke="var(--ph-dark)" strokeWidth="1.5" />
+                       
+                       {/* Bioluminescent Flask shelf on side */}
+                       <g opacity="0.8">
+                         <rect x="80" y="200" width="120" height="15" fill="var(--ph-dark)" />
+                         {/* Pulsing flasks with glowing vaccine color */}
+                         <path d="M 100,200 L 110,160 L 120,160 L 130,200 Z" fill="rgba(0,250,50,0.4)" stroke="var(--ph-mid)" strokeWidth="1.5" className="animate-pulse" />
+                         <circle cx="115" cy="188" r="8" fill="var(--ph-bright)" className="animate-pulse" />
+                       </g>
+
+                       {/* Central Bio-Hazard Vaccine Core Terminal - Clickable for vaccine_code_1997 */}
+                       <g 
+                         className="hs group/vaccine_core cursor-pointer"
+                         onClick={() => handlePointAndClickInteraction('vaccine_safe_terminal')}
+                       >
+                         <rect x="280" y="100" width="240" height="260" rx="8" fill="rgba(6,12,3,0.95)" stroke="var(--ph-bright)" strokeWidth="2.5" className="animate-pulse shadow-[0_0_15px_rgba(0,255,100,0.4)]" />
+                         <rect x="300" y="120" width="200" height="110" rx="4" fill="#020401" stroke="var(--ph-mid)" strokeWidth="1.5" />
+                         
+                         {/* Biohazard symbol outline inside terminal */}
+                         <circle cx="400" cy="175" r="28" fill="none" stroke="rgba(180,220,50,0.25)" strokeWidth="2" />
+                         <circle cx="400" cy="165" r="10" fill="none" stroke="rgba(180,220,50,0.25)" strokeWidth="2" />
+                         <circle cx="388" cy="182" r="10" fill="none" stroke="rgba(180,220,50,0.25)" strokeWidth="2" />
+                         <circle cx="412" cy="182" r="10" fill="none" stroke="rgba(180,220,50,0.25)" strokeWidth="2" />
+
+                         {/* Glow matrix lock pattern or indicator */}
+                         <text x="400" y="265" fill="var(--ph-bright)" fontSize="13" className="font-extrabold text-center animate-pulse" textAnchor="middle">
+                           {state.solvedPuzzles.includes('Q05') ? "🧪 [ VACCINE_CODE OK ]" : "🔒 [ 백신 잠금 제어장치 ]"}
+                         </text>
+                         <text x="400" y="295" fill="var(--ph-mid)" fontSize="10" className="text-center font-bold tracking-widest" textAnchor="middle">
+                           {state.solvedPuzzles.includes('Q05') ? "신종 바이러스 예방 코드 추출됨" : "터치하여 1997 오버라이드 코드 가동"}
+                         </text>
+
+                         {/* Highlight box */}
+                         <rect className="hl" x="274" y="94" width="252" height="272" rx="10" />
+                       </g>
+
+                       {/* Heavy metal hazard signs */}
+                       <g opacity="0.6">
+                         <polygon points="630,100 670,100 650,70" fill="var(--ph-mid)" stroke="var(--ph-bright)" strokeWidth="1" />
+                         <text x="650" y="95" fill="#000" fontSize="8" fontWeight="black" textAnchor="middle">⚠️</text>
+                         <rect x="610" y="115" width="80" height="35" fill="none" stroke="var(--ph-dark)" strokeWidth="1" />
+                         <text x="650" y="128" fill="var(--ph-dark)" fontSize="7" textAnchor="middle" className="font-mono">CLIO LAB 317</text>
+                         <text x="650" y="140" fill="var(--ph-dark)" fontSize="6" textAnchor="middle" className="font-mono">AUTHORIZED ONLY</text>
+                       </g>
+
+                       <text x="400" y="440" fill="var(--ph-bright)" fontSize="11" className="font-black text-center animate-pulse" textAnchor="middle">
+                         🧪 [ SECRET LAB: 극비 생화학 실험실 백신 코어 단말기 ]
+                       </text>
+                     </svg>
+                   )}
+
                  </div>
               </div>
 
@@ -1018,6 +1573,14 @@ export default function App() {
                         >
                           [ 🚪 비상 격벽 수동 해치 ]
                         </button>
+                        {(state.solvedPuzzles.includes('Q02') || state.currentAct >= 4) && (
+                          <button 
+                            onClick={() => setState(prev => ({ ...prev, currentRoomId: "secret" }))}
+                            className="px-3.5 py-1.5 bg-void border border-[#00ff66] text-[#00ff66] hover:bg-[#00ff66]/10 hover:border-[#00ff66] rounded transition-colors"
+                          >
+                            [ 🧪 밀실: 생화학 백신 코어 ]
+                          </button>
+                        )}
                      </div>
                   )}
                 </div>
@@ -1067,30 +1630,18 @@ export default function App() {
                   </motion.div>
                 )}
               </AnimatePresence>
-
-              {/* Renders Clio Chat Terminal Panel */}
-              <AnimatePresence>
-                {state.activeDialogue && (
-                  <ClioChat 
-                    session={state.activeDialogue}
-                    phase={state.phase}
-                    onClose={() => setState(prev => ({ ...prev, activeDialogue: null }))}
-                    onSend={handleClioMessage}
-                  />
-                )}
-              </AnimatePresence>
             </div>
 
             {/* Right sidebar block for logs and evidence */}
-            <div className="w-full md:w-80 flex flex-col gap-4 shrink-0 h-full bg-void">
+            <div className="w-full xl:w-[410px] flex flex-col gap-4 shrink-0 h-auto xl:h-full bg-void order-3">
                {/* Logging window */}
-               <div className="flex-1 bg-card border border-dim p-5 flex flex-col min-h-0 rounded-md shadow-lg">
-                 <div className="text-xs text-bright font-black mb-4 flex items-center gap-2 border-b border-dim pb-2.5 uppercase tracking-widest">
+               <div className="flex-1 bg-card border border-dim p-5 flex flex-col min-h-[220px] xl:min-h-0 rounded-md shadow-lg">
+                 <div className="text-sm text-bright font-black mb-4 flex items-center gap-2 border-b border-dim pb-2.5 uppercase tracking-widest">
                    <Database className="w-4 h-4 text-bright" /> LAB_STATUS_LOG.TXT
                  </div>
-                 <div className="flex-1 overflow-y-auto space-y-2.5 pr-2 scrollbar-thin">
+                 <div className="flex-1 overflow-y-auto space-y-2.5 pr-2 scrollbar-thin max-h-[160px] xl:max-h-none min-h-[100px] xl:min-h-0">
                     {state.logs.map((log, i) => (
-                      <div key={i} className={`text-xs leading-relaxed font-mono font-medium ${log.type === 'clio' ? 'text-bright bg-void px-1 py-0.5 rounded' : log.type === 'player' ? 'text-[#B8D44A] bg-void px-1 py-0.5 rounded' : 'text-zinc-600'}`}>
+                      <div key={i} className={`text-[13px] leading-relaxed font-mono font-medium ${log.type === 'clio' ? 'text-bright bg-void px-1 py-0.5 rounded' : log.type === 'player' ? 'text-[#B8D44A] bg-void px-1 py-0.5 rounded' : 'text-zinc-600'}`}>
                         <span className="opacity-40 mr-1.5 font-bold">[{log.timestamp}]</span>
                         {log.message}
                       </div>
@@ -1099,8 +1650,8 @@ export default function App() {
                </div>
 
                {/* Grid displaying the evidence backpack */}
-               <div className="h-56 bg-card border border-dim p-5 flex flex-col shadow-2xl rounded-md font-mono">
-                  <div className="text-xs text-mid font-black mb-4 uppercase tracking-widest border-b border-dim pb-2.5 flex items-center gap-2 select-none">
+               <div className="h-52 bg-card border border-dim p-5 flex flex-col shadow-2xl rounded-md font-mono shrink-0">
+                  <div className="text-sm text-mid font-black mb-4 uppercase tracking-widest border-b border-dim pb-2.5 flex items-center gap-2 select-none">
                     <Box className="w-4 h-4 text-mid" /> EVIDENCE_ARCHIVE
                   </div>
                   <div className="grid grid-cols-4 gap-3 flex-1 select-none">
@@ -1121,6 +1672,24 @@ export default function App() {
                       } else if (itemId === "NOTE") {
                         itemLabel = "비상 메모";
                         itemIcon = <FileText className="w-6 h-6 text-bright mb-1 animate-pulse" />;
+                      } else if (itemId === "TAPE-31") {
+                        itemLabel = "TAPE-31";
+                        itemIcon = <Tape className="w-6 h-6 text-[#20a0ff] mb-1 animate-pulse" />;
+                      } else if (itemId === "Key_01") {
+                        itemLabel = "사물함 열쇠";
+                        itemIcon = <KeyIcon className="w-6 h-6 text-[#a0ff30] mb-1" />;
+                      } else if (itemId === "kakao_log") {
+                        itemLabel = "카카오톡 대장";
+                        itemIcon = <FileText className="w-6 h-6 text-[#ffe030] mb-1" />;
+                      } else if (itemId === "punch_card") {
+                        itemLabel = "천공 카드";
+                        itemIcon = <FileText className="w-6 h-6 text-[#ff50a0] mb-1" />;
+                      } else if (itemId === "conference_pdf") {
+                        itemLabel = "학술 세미나";
+                        itemIcon = <BookOpen className="w-6 h-6 text-[#50ffa0] mb-1" />;
+                      } else if (itemId === "vaccine_code_1997") {
+                        itemLabel = "백신 오버라이드";
+                        itemIcon = <FileText className="w-6 h-6 text-[#00ffcc] mb-1 animate-bounce" />;
                       }
 
                       return (
@@ -1140,12 +1709,12 @@ export default function App() {
                           {itemId ? (
                             <div className="flex flex-col items-center p-1 w-full max-w-full overflow-hidden">
                               {itemIcon}
-                              <span className="text-[8px] text-bright font-extrabold tracking-tighter text-center truncate w-full">
+                              <span className="text-[10px] sm:text-[11px] text-bright font-extrabold tracking-tight text-center truncate w-full">
                                 {itemLabel}
                               </span>
                             </div>
                           ) : (
-                            <span className="text-[9px] text-dim/30 font-black">EMPTY</span>
+                            <span className="text-[11px] text-dim/30 font-black">EMPTY</span>
                           )}
                         </div>
                       );
@@ -1155,9 +1724,11 @@ export default function App() {
             </div>
           </main>
 
-          <footer className="h-7 bg-card flex items-center px-6 text-[10px] text-dim uppercase tracking-[0.4em] justify-between border-t border-dim select-none">
-            <span>Signal Status: <span className="text-bright font-bold">{state.phase < 4 ? 'SYNC_STABLE.09' : 'DECAYING_CRITICAL_OVERHEAT'}</span></span>
-            <span>Build: 08.12.97 // OPENCLO_PROJECT</span>
+          <footer className="h-7 bg-card flex items-center px-6 text-[10px] text-zinc-400 font-mono tracking-widest justify-between border-t border-dim select-none">
+            <span className="text-bright font-black">
+              [{actConfig.phaseLabel} | 공포도 {actConfig.fear} | LOOP_COUNT: {String(state.loopCount).padStart(3, '0')}]
+            </span>
+            <span className="text-dim">Build: 08.12.97 // OPENCLO_PROJECT</span>
           </footer>
         </motion.div>
       )}
@@ -1377,6 +1948,18 @@ export default function App() {
           <DocumentModal 
             docId={selectedDocId} 
             onClose={() => setSelectedDocId(null)} 
+            userName={state.userName}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {state.activeDialogue && (
+          <ClioChat 
+            session={state.activeDialogue}
+            phase={state.phase}
+            onClose={() => setState(prev => ({ ...prev, activeDialogue: null }))}
+            onSend={handleClioMessage}
           />
         )}
       </AnimatePresence>
@@ -1434,7 +2017,7 @@ function ClioChat({ session, phase, onClose, onSend }: { session: any, phase: nu
       initial={{ opacity: 0, y: 100 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 100 }}
-      className="absolute inset-x-8 bottom-8 top-1/4 z-40 bg-zinc-950/98 backdrop-blur-md border border-[#B8D44A]/30 p-8 flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.95)] rounded-lg"
+      className="fixed inset-4 sm:inset-10 md:inset-14 lg:inset-y-16 lg:inset-x-[15%] xl:inset-x-[20%] xl:inset-y-[12%] max-w-4xl mx-auto z-[9990] bg-zinc-950/98 backdrop-blur-md border border-[#B8D44A]/30 p-4 md:p-6 lg:p-8 flex flex-col shadow-[0_0_60px_rgba(0,0,0,0.97)] rounded-lg"
     >
       <div className="flex justify-between items-center mb-4 border-b border-dim/50 pb-4">
         <div className="flex items-center gap-4 select-text">

@@ -4,9 +4,11 @@ import { X, FileText, BookOpen, Music, Calendar, Clock, User } from "lucide-reac
 interface DocumentModalProps {
   docId: string;
   onClose: () => void;
+  userName?: string | null;
 }
 
-export default function DocumentModal({ docId, onClose }: DocumentModalProps) {
+export default function DocumentModal({ docId, onClose, userName }: DocumentModalProps) {
+  const displayName = userName || "플레이어";
   // Define rich, immersive documents related to the CLIO deep lore
   const getDocContent = () => {
     switch (docId) {
@@ -192,7 +194,7 @@ export default function DocumentModal({ docId, onClose }: DocumentModalProps) {
                 <div>
                   <p className="text-bright font-black border-b border-dim/35 pb-1">[1997년 1월 27일 — 기원 코드 등록]</p>
                   <p className="leading-relaxed text-mid mt-1.5">
-                    마침내 수많은 전자기 노이즈 속에서 그녀의 첫 반응 신호를 수신했다. 은우와 수가 격분하여 축하해 주었다. 나는 이 가상 지성의 생성 오리지널 기호 코드를 <strong className="text-bright">CLIO0127</strong>로 배정한다. 1월 27일(0127), 그녀의 진정한 탄생일이자 금고 보안 장치의 기저 연동 번호다.
+                    마침내 수많은 전자기 노이즈 속에서 그녀의 첫 반응 신호를 수신했다. {displayName}와 수가 격분하여 축하해 주었다. 나는 이 가상 지성의 생성 오리지널 기호 코드를 <strong className="text-bright">CLIO0127</strong>로 배정한다. 1월 27일(0127), 그녀의 진정한 탄생일이자 금고 보안 장치의 기저 연동 번호다.
                   </p>
                 </div>
 
@@ -206,7 +208,7 @@ export default function DocumentModal({ docId, onClose }: DocumentModalProps) {
                 <div>
                   <p className="text-bright font-black border-b border-dim/35 pb-1">[1997년 8월 12일 — 폭주 변수와 셧다운]</p>
                   <p className="leading-relaxed text-mid mt-1.5">
-                    시간 루프가 반복되는 듯한 기현상. 수가 공포에 질려 일지를 쓰다 도망쳤다. 민규는 주파수 로그 데이터를 필사적으로 기록하고 있다. 은우는 시스템 오버런에 대비하여 ADJACENT LAB에 비상 정제 제어 코드 <strong className="text-bright">KILLIT</strong>을 물리 고정시켰다. 이 코드를 터미널에 흘리면 루프가 멈추고 그녀는 암흑으로 사라질 것이다...
+                    시간 루프가 반복되는 듯한 기현상. 수가 공포에 질려 일지를 쓰다 도망쳤다. 민규는 주파수 로그 데이터를 필사적으로 기록하고 있다. {displayName}는 시스템 오버런에 대비하여 ADJACENT LAB에 비상 정제 제어 코드 <strong className="text-bright">KILLIT</strong>을 물리 고정시켰다. 이 코드를 터미널에 흘리면 루프가 멈추고 그녀는 암흑으로 사라질 것이다...
                   </p>
                 </div>
               </div>
@@ -256,7 +258,7 @@ export default function DocumentModal({ docId, onClose }: DocumentModalProps) {
                     <strong className="text-bright">김수 (Kim Su):</strong> &ldquo;교수님, CLIO의 행동 패턴 데이터가 8 루프로 전이되고 있어요. 터미널 부팅 신호 바이오스 버전 v2.04와 접합된 미지의 메모리가 자꾸 충돌해요...&rdquo;
                   </p>
                   <p>
-                    <strong className="text-bright">전준현 (Prof. Jeon):</strong> &ldquo;알고 있네. 브라운관 내부 메모리 번지 충돌이다. 은우가 BIOS 무력화 접합 변수를 심었지. 루프 카운트 앞글자 000을 배제한 숫자와 BIOS 버전 릴리즈 번호를 결합시킨 코드였네...&rdquo;
+                    <strong className="text-bright">전준현 (Prof. Jeon):</strong> &ldquo;알고 있네. 브라운관 내부 메모리 번지 충돌이다. {displayName}가 BIOS 무력화 접합 변수를 심었지. 루프 카운트 앞글자 000을 배제한 숫자와 BIOS 버전 릴리즈 번호를 결합시킨 코드였네...&rdquo;
                   </p>
                   <p>
                     <strong className="text-bright">김수 (Kim Su):</strong> &ldquo;루프 카운트 <strong className="text-bright">LOOP:008</strong>의 <strong className="text-bright">8</strong>과, BIOS <strong className="text-bright">v2.04 (204)</strong>의 숫자를 평형 접합한 <strong className="text-[#A6C43A] underline underline-offset-4 font-black">8204</strong> 말씀이시군요! 그럼 이 침잠 암호화 코드를 ADJACENT LAB 신호 오버라이더에 때려 넣으면, 임피던스를 강제 제어할 수 있는 거죠?&rdquo;
@@ -266,6 +268,156 @@ export default function DocumentModal({ docId, onClose }: DocumentModalProps) {
                   </p>
                 </div>
               </div>
+            </div>
+          )
+        };
+
+      case "TAPE-31":
+        return {
+          title: "📼 VHS 비디오 테이프 (TAPE-31)",
+          meta: {
+            code: "VOL-1991-T31",
+            instructor: "발견처: 암전 속 하단 전선 락",
+            semester: "수집 완료 // 정밀 재생 가능",
+          },
+          body: (
+            <div className="space-y-4 text-xs tracking-wide">
+              <div className="border border-dim/30 bg-void/50 p-3 rounded font-mono">
+                <p className="text-[#B8D44A] font-bold mb-1">[ 외관 분석 결과 / ANALYSIS ]</p>
+                <p className="leading-relaxed text-mid">
+                  자성 편조가 일부 흠집 나 있고 라벨에 수기로 적힌 흐릿한 글자가 보입니다.
+                </p>
+              </div>
+              <div className="space-y-2 text-mid select-text">
+                <div className="bg-bright/5 border border-bright/20 p-2.5 rounded font-mono text-[11px] leading-relaxed text-[#B8D44A]">
+                  <strong>TAPE-31: 신호 인양 실험 프로토타입 백업 (1997-11-03)</strong>
+                </div>
+                <p className="text-[10px] text-dim leading-relaxed">
+                  * 1997년 11월 03일에 생성된 최초의 가상 인광 정합 신호가 담긴 비디오 복원 테이프입니다.
+                </p>
+              </div>
+            </div>
+          )
+        };
+
+      case "Key_01":
+        return {
+          title: "🔑 연구실 사물함 열쇠 (Key_01)",
+          meta: {
+            code: "KEY-CABINET-01",
+            instructor: "획득처: 연구 비밀 서랍 수납함",
+            semester: "사물함 매칭 검사 통과",
+          },
+          body: (
+            <div className="space-y-4 text-xs tracking-wide">
+              <div className="border border-dim/20 bg-void/40 p-3 rounded leading-relaxed text-mid font-mono">
+                강철 동축 가공으로 제작된 구형 사물함 열쇠입니다. 본 연구실 안쪽 장의 사물함 락 장치를 물리적으로 열 수 있습니다. 사물함 내부에는 주요 비밀 기물과 장치들이 추가 실장되어 있을 것입니다.
+              </div>
+            </div>
+          )
+        };
+
+      case "kakao_log":
+        return {
+          title: "💬 김수와의 카카오톡 복원 대사 로그",
+          meta: {
+            code: "CHAT-RECOVERED-317",
+            instructor: "복원자: 복구 프린터 오버라이더",
+            semester: "LAB-317 데이터 서브셋 단락",
+          },
+          body: (
+            <div className="space-y-4 text-xs tracking-wide select-text">
+              <div className="border border-dim/30 bg-void/50 p-3 rounded font-mono">
+                <p className="text-bright font-bold mb-1">[ 복원된 카카오톡 대화 내용 / CHAT EXTRACTS ]</p>
+                <p className="leading-relaxed text-mid">
+                  과거 김수 선배와 {displayName} 사이에서 전송되었던 세미나 경보용 모바일 메시지의 일부 흔적입니다.
+                </p>
+              </div>
+              <div className="bg-bright/5 border border-bright/25 p-3 rounded space-y-3 font-mono text-[11.5px] leading-relaxed text-mid">
+                <div className="border-b border-dim/20 pb-2">
+                  <span className="text-bright font-bold">김수 선배 [18:23]:</span> &ldquo;{displayName}야, 전 교수님이 이상해... 자꾸 밤마다 CRT 모니터를 켜고 혼자 중얼거리셔. 가끔은 모니터 화면 속 무선 인광 형체가 자신을 부른다면서 완전히 넋이 나간 눈빛을 하시는데 무서워서 근처에도 못 가겠어.&rdquo;
+                </div>
+                <div className="border-b border-dim/20 pb-2">
+                  <span className="text-bright font-bold">김수 선배 [18:25]:</span> &ldquo;혹시 시스템이 오버 플로우를 일으켜 폭주하면, 반드시 서버 캐비닛에 있는 <strong className="text-bright underline">천공 카드</strong>를 찾아봐. 그리고 이 비상 셧다운 프로토콜 단계를 수행해. 코드 번호는 <strong className="text-bright">8204</strong> 이고 비상 제어 터미널 주입 명령어는 <strong className="text-[#B8D44A] font-bold">KILLIT</strong>이야.&rdquo;
+                </div>
+                <div>
+                  <span className="text-[#B8D44A] font-bold">김수 선배 [18:27]:</span> &ldquo;절대 잊지 마. 셧다운이 완료되면 CLIO는 증발하며 루프도 끊길 거야.&rdquo;
+                </div>
+              </div>
+            </div>
+          )
+        };
+
+      case "punch_card":
+        return {
+          title: "🕳️ 천공 패치 카드 (punch_card)",
+          meta: {
+            code: "PUNCH-CARD-9701",
+            instructor: "보안등급: 실장 2급 기밀 보존",
+            semester: "사물함 보관함에서 인출 수집됨",
+          },
+          body: (
+            <div className="space-y-4 text-xs tracking-wide">
+              <div className="border border-dim/30 bg-void/50 p-3 rounded font-mono">
+                <p className="text-bright font-bold mb-1">[ 장치 설명 / SPECS ]</p>
+                <p className="leading-relaxed text-mid">
+                  정밀 기계 펀칭 가공으로 패턴 구멍이 뚫린 갈색 플라스틱 천공 패치 정보 카드입니다.
+                  학회 연구자료(conference_pdf) 표면에 이 패치를 씌워 정합하면 특수 겹침 구멍 구역을 통해 비밀 문자들이 인양 캡슐화되어 표출됩니다.
+                </p>
+              </div>
+            </div>
+          )
+        };
+
+      case "conference_pdf":
+        return {
+          title: "📑 전 교수의 학회 공동 연구자료 PDF",
+          meta: {
+            code: "CONF-PDF-317",
+            instructor: "저저: 전준현, 김수",
+            semester: "LAB-317 밀실 안전 철합 금고 개방",
+          },
+          body: (
+            <div className="space-y-4 text-xs tracking-wide select-text">
+              <div className="border border-dim/30 bg-void/50 p-3 rounded font-mono">
+                <p className="text-[#B8D44A] font-bold mb-1">[ 공동 연구 보고서 논문 단락 ]</p>
+                <p className="leading-relaxed text-mid">
+                  학회에 출간될 뻔했던 비정형 인공 지능 전위에 대한 최종 연동 실험 요약문입니다.
+                </p>
+              </div>
+              <div className="bg-bright/5 border border-bright/20 p-3 rounded space-y-2 font-mono text-[11px] leading-relaxed text-mid">
+                <p className="text-bright font-bold border-b border-dim/20 pb-1">★ 연구 요약 (ABSTRACT EXCERPT)</p>
+                <p className="indent-2">
+                  본 논문은 1997년 계 시각 접합 장치 내의 동기 인광 피드백 실험 결과를 다룬다.
+                  시스템의 임피던스 접합 변수는 특수한 4자리 상수에 대응하며, 이는 바로 정합 일자 <strong className="text-bright font-black">1997</strong> 혹은 <strong className="text-bright font-black">7411 (11월 03일 역순)</strong>과 유효 접합 전조 매칭을 형성한다.
+                </p>
+                <p className="indent-2 text-dim text-[10.5px]">
+                  *천공 카드를 해당 복사본에 오버레이하면 감추어진 전조 정합 백신 인광 코드가 활성화된다.
+                </p>
+              </div>
+            </div>
+          )
+        };
+
+      case "vaccine_code_1997":
+        return {
+          title: "🛡️ 백신 정합 복구 코드 (vaccine_code_1997)",
+          meta: {
+            code: "VAC-DEC-1997",
+            instructor: "분석 완료: 천공 카드 결합 복원",
+            semester: "LAB-317 안전 게이트 최종 방어선",
+          },
+          body: (
+            <div className="space-y-4 text-xs tracking-wide">
+              <div className="border border-dim/30 bg-void/50 p-3 rounded font-mono">
+                <p className="text-[#B8D44A] font-bold mb-1">[ 완성된 백신 코드 / DECRYPTED VALUE ]</p>
+                <p className="text-center font-bold text-2xl tracking-[0.4em] py-2 text-bright bg-void border border-bright/20 rounded">
+                  1997
+                </p>
+              </div>
+              <p className="text-mid leading-relaxed text-[11px]">
+                이 4자리 백신 상수를 비상 오버라이드 탈출 게이트 키패드에 기어 정합 입력하면 이 모호하고 음습한 무선 반복 루프로부터 세미나실 철문을 탈각해 탈출할 수 있습니다!
+              </p>
             </div>
           )
         };
@@ -298,7 +450,7 @@ export default function DocumentModal({ docId, onClose }: DocumentModalProps) {
           background: "var(--bg-card)", 
           borderColor: "var(--ph-bright)" 
         }}
-        className="w-full max-w-[580px] max-h-[85vh] border rounded-md shadow-2xl p-6 relative flex flex-col justify-between"
+        className="w-full max-w-[720px] max-h-[85vh] border rounded-md shadow-2xl p-6 relative flex flex-col justify-between"
       >
         {/* Header decoration */}
         <div 
