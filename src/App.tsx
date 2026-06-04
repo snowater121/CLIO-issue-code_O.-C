@@ -683,7 +683,16 @@ export default function App() {
     else {
       if (type === 'vhs') {
         if (state.inventory.includes('VHS')) return;
-        setState(prev => ({ ...prev, inventory: [...prev.inventory, 'VHS'] }));
+        setState(prev => {
+          const newSolved = [...prev.solvedPuzzles];
+          if (!newSolved.includes('Q00')) newSolved.push('Q00');
+          if (!newSolved.includes('Q11')) newSolved.push('Q11');
+          return {
+            ...prev,
+            inventory: [...prev.inventory, 'VHS'],
+            solvedPuzzles: newSolved
+          };
+        });
         addLog("🎒 획득: 📼 기존 VHS 비디오 테이프", "system");
       } else if (type === 'journal') {
         if (state.inventory.includes('JRNL')) return;
