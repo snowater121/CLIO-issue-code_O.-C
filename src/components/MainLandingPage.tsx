@@ -227,14 +227,14 @@ export default function MainLandingPage({ onStartGame, onResetState, userName }:
         setIsPlaying(true);
       } else {
         // Fallback to default high-fidelity simulated retro video loop
-        setVideoUrl("SIMULATED_TRAILER");
+        setVideoUrl("CLIO teaser.mp4");
         setTapeInserted(true);
         setIsPlaying(true);
       }
     }).catch(err => {
       console.warn("Could not load stored video from database:", err);
       // Fallback on error too
-      setVideoUrl("SIMULATED_TRAILER");
+      setVideoUrl("CLIO teaser.mp4");
       setTapeInserted(true);
       setIsPlaying(true);
     });
