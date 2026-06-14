@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, FormEvent } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Database, CassetteTape as Tape, ChevronRight, Zap } from "lucide-react";
+import { audioSynth } from "../services/audioService";
 
 interface LobbyScreenProps {
   userName: string | null;
@@ -182,7 +183,10 @@ export default function LobbyScreen({ userName, onEnter, onReset }: LobbyScreenP
                            }`}
                            placeholder="TYPE_NAME"
                            value={inputName}
-                           onChange={(e) => setInputName(e.target.value)}
+                           onChange={(e) => {
+                              setInputName(e.target.value);
+                              audioSynth.playTypewriter();
+                            }}
                            maxLength={12}
                            onFocus={() => setIsFocused(true)}
                            onBlur={() => setIsFocused(false)}
@@ -202,7 +206,10 @@ export default function LobbyScreen({ userName, onEnter, onReset }: LobbyScreenP
                            className="w-full bg-void border rounded py-3 px-4 text-center outline-none font-mono text-sm tracking-[0.16em] transition-all"
                            placeholder="STUDENT ID (학번)"
                            value={studentId}
-                           onChange={(e) => setStudentId(e.target.value)}
+                           onChange={(e) => {
+                              setStudentId(e.target.value);
+                              audioSynth.playTypewriter();
+                            }}
                            maxLength={15}
                            onFocus={() => setIsIdFocused(true)}
                            onBlur={() => setIsIdFocused(false)}

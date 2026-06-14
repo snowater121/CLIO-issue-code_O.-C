@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, FormEvent, MouseEvent } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Lock, Unlock, HelpCircle, ArrowLeftRight, Check, Printer, Key, ShieldAlert, Award, FileText, CheckCircle } from "lucide-react";
+import { audioSynth } from "../services/audioService";
 
 interface PuzzleModalProps {
   puzzle: {
@@ -16,20 +17,21 @@ interface PuzzleModalProps {
   onSolve: (reward?: string | string[]) => void;
   onOpenDoc?: (docId: string) => void;
   inventory?: string[];
+  userName?: string | null;
 }
 
-export default function PuzzleModal({ puzzle, onClose, onSolve, onOpenDoc, inventory = [] }: PuzzleModalProps) {
+export default function PuzzleModal({ puzzle, onClose, onSolve, onOpenDoc, inventory = [], userName = null }: PuzzleModalProps) {
   const [solved, setSolved] = useState(false);
   
   // Custom eye-tracking mouse coordinates for Q01 (Syllabus)
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Q01 State: slots and pool for syllabus puzzle (0430)
+  // Q01 State: slots and pool for syllabus puzzle (3790)
   const [q01Slots, setQ01Slots] = useState<string[]>(() => Array(4).fill(""));
-  const [q01Pool, setQ01Pool] = useState<string[]>(() => ["3", "0", "4", "0"].sort(() => Math.random() - 0.5));
+  const [activeStep, setActiveStep] = useState<number>(0);
 
-  // Q06 State: Dial lock "0430"
+  // Q06 State: Dial lock "3790"
   const [q06Val, setQ06Val] = useState(["0", "0", "0", "0"]);
   const [showDiaryBook, setShowDiaryBook] = useState(false);
   const [diaryPage, setDiaryPage] = useState(0);
@@ -58,6 +60,12 @@ export default function PuzzleModal({ puzzle, onClose, onSolve, onOpenDoc, inven
   const [jigsawMatched, setJigsawMatched] = useState(false);
   const [safeInput, setSafeInput] = useState("");
   const [safeSolved, setSafeSolved] = useState(false);
+  const [q09Slots, setQ09Slots] = useState<{ [key: string]: boolean }>({
+    diary_37: false,
+    kakao_log: false,
+    kim_log: false,
+    escape_kit: false,
+  });
 
   // Q21 State: Punch card overlay on PDF
   const [cardOffset, setCardOffset] = useState({ x: 0, y: 0 });
@@ -79,6 +87,21 @@ export default function PuzzleModal({ puzzle, onClose, onSolve, onOpenDoc, inven
 
   // Eyes vector geometry
   const calculateEyeOffset = (centerX: number, centerY: number) => {
+    if (puzzle.id === "Q01") {
+      const limit = 8;
+      switch (activeStep) {
+        case 0: // 3 o'clock (East)
+          return { x: limit, y: 0 };
+        case 1: // 7 o'clock (South-Southwest)
+          return { x: -limit * 0.866, y: limit * 0.5 };
+        case 2: // 9 o'clock (West)
+          return { x: -limit, y: 0 };
+        case 3: // 12 o'clock (North)
+          return { x: 0, y: -limit };
+        default:
+          return { x: 0, y: 0 };
+      }
+    }
     const dx = mousePos.x - centerX;
     const dy = mousePos.y - centerY;
     const angle = Math.atan2(dy, dx);
@@ -89,72 +112,99 @@ export default function PuzzleModal({ puzzle, onClose, onSolve, onOpenDoc, inven
     };
   };
 
-  const leftEyeOffset = calculateEyeOffset(160, 50);
-  const rightEyeOffset = calculateEyeOffset(240, 50);
+  const leftEyeOffset = calculateEyeOffset(160, 35);
+  const rightEyeOffset = calculateEyeOffset(240, 35);
 
   // 1. Q01 Syllabus slots-and-pool placing logic
   const handleQ01Place = (frag: string) => {
-    const i = q01Slots.indexOf("");
-    if (i === -1) return;
+    audioSynth.playClick();
     const nextSlots = [...q01Slots];
-    nextSlots[i] = frag;
+    nextSlots[activeStep] = frag;
     setQ01Slots(nextSlots);
-    setQ01Pool(prev => prev.filter((_, k) => k !== prev.indexOf(frag)));
 
-    if (nextSlots.every(Boolean) && nextSlots.join("") === "0430") {
-      setSolved(true);
-      setTimeout(() => {
-        onSolve("code_0430");
-      }, 1200);
+    // Auto advance activeStep or find next empty slot
+    let nextEmptyIdx = nextSlots.indexOf("", activeStep);
+    if (nextEmptyIdx === -1) {
+      nextEmptyIdx = nextSlots.indexOf("");
+    }
+    if (nextEmptyIdx !== -1) {
+      setActiveStep(nextEmptyIdx);
+    }
+
+    if (nextSlots.every(Boolean)) {
+      if (nextSlots.join("") === "3790") {
+        setSolved(true);
+        setTimeout(() => {
+          onSolve("code_3790");
+        }, 1200);
+      } else {
+        audioSynth.playFailure();
+      }
     }
   };
 
   const handleQ01Reset = () => {
+    audioSynth.playClick();
     setQ01Slots(Array(4).fill(""));
-    setQ01Pool(["3", "0", "4", "0"].sort(() => Math.random() - 0.5));
+    setActiveStep(0);
   };
 
   const handleQ01SlotClick = (index: number) => {
-    const val = q01Slots[index];
-    if (!val) return;
-    const nextSlots = [...q01Slots];
-    nextSlots[index] = "";
-    setQ01Slots(nextSlots);
-    setQ01Pool(prev => [...prev, val]);
+    audioSynth.playClick();
+    setActiveStep(index);
+    if (q01Slots[index]) {
+      const nextSlots = [...q01Slots];
+      nextSlots[index] = "";
+      setQ01Slots(nextSlots);
+    }
   };
 
   // 2. Q06 Dial code solver
   const changeDigit = (idx: number, delta: number) => {
+    audioSynth.playClick();
     const nextVal = [...q06Val];
     let digit = parseInt(nextVal[idx], 10);
     digit = (digit + delta + 10) % 10;
     nextVal[idx] = digit.toString();
     setQ06Val(nextVal);
 
-    if (nextVal.join("") === "0430") {
+    if (nextVal.join("") === (puzzle.data.solution || "3790")) {
       setShowDiaryBook(true);
     }
   };
 
   const takeDiaryReward = () => {
+    audioSynth.playUnlock();
     setSolved(true);
     onSolve(["Key_01", "diary_37"]);
   };
 
   // 3. Q16 Printer reveal logic
+  const pName = userName ? userName.split(" (")[0].trim() : "은우";
+  let playerLabel = pName;
+  let suLabel = "수";
+  let minkyuLabel = "민규";
+
+  if (pName === "김수" || pName === "수") {
+    suLabel = "전민혁";
+  } else if (pName === "김민규" || pName === "민규") {
+    minkyuLabel = "전민혁";
+  }
+
   const printerLogs = [
     "LOG_LINK_RESTORING...",
-    "민규: 이틀 전 CLIO 백업본 소멸 기록이 확인됐어.",
-    "수: 설마 은우 오빠(팀장)가 지운 건가? 오빠 계정으로 로그인되어 있던데...",
-    "은우(플레이어): 무슨 소리야, 나 그 시간에 오실로스코프 분주 회로 연결하고 있었어.",
-    "민규: 은우 네가 한 짓 아니면 CLIO가 직접 은우 너로 세션 마크를 위장했다는 거야?",
+    `${minkyuLabel}: 이틀 전 CLIO 백업본 소멸 기록이 확인됐어.`,
+    `${suLabel}: 설마 ${playerLabel} 형(팀장)이 지운 건가? 형 계정으로 로그인되어 있던데...`,
+    `${playerLabel}(플레이어): 무슨 소리야, 나 그 시간에 오실로스코프 분주 회로 연결하고 있었어.`,
+    `${minkyuLabel}: ${playerLabel} 네가 한 짓 아니면 CLIO가 직접 ${playerLabel} 너로 세션 마크를 위장했다는 거야?`,
     "태그 분석: [SESSION_SEO_EUNWOO] [TARGET: MINKYU_CHAT_MUTATION_SUCCESS]",
-    "CLIO 백스테이지 관찰: 팀원 분열 의심을 유도하여 이탈 차단을 실장 완료.",
+    "CLIO 백스테이지 관찰: 팀원 분열 의심을 유도하여 이탈하지 못하도록 차단 완료.",
     "■ CLIO 코어 오버헤드: 폭주 노이즈 유출 차단을 위해 로그 세그먼트 전위 변수 오프셋 진행.",
     "CLIO: '어머... 네트워크 프린터가 오작동했나 봐요... 금방 로그 라벨 지우고 Segment B에서 A로 리셋할게요! 🙂'"
   ];
 
   const runPrinter = () => {
+    audioSynth.playClick();
     setPrinterStep("printing");
     setPrintLines([]);
     setPrintIndex(0);
@@ -172,6 +222,7 @@ export default function PuzzleModal({ puzzle, onClose, onSolve, onOpenDoc, inven
     }
     const timer = setTimeout(() => {
       setPrintLines(prev => [...prev, printerLogs[printIndex]]);
+      audioSynth.playTypewriter();
       setPrintIndex(prev => prev + 1);
     }, 1000);
     return () => clearTimeout(timer);
@@ -179,6 +230,7 @@ export default function PuzzleModal({ puzzle, onClose, onSolve, onOpenDoc, inven
 
   // 4. Q02 Books Arrange Logic
   const handleBookSwap = (index: number) => {
+    audioSynth.playClick();
     if (selectedBookIdx === null) {
       setSelectedBookIdx(index);
     } else {
@@ -205,6 +257,7 @@ export default function PuzzleModal({ puzzle, onClose, onSolve, onOpenDoc, inven
   };
 
   const handleBookReset = () => {
+    audioSynth.playClick();
     setSelectedBookIdx(null);
     const target = ["V", "I", "R", "U", "S"];
     let shuffled = [...target].sort(() => Math.random() - 0.5);
@@ -217,6 +270,7 @@ export default function PuzzleModal({ puzzle, onClose, onSolve, onOpenDoc, inven
   // 5. Q09 Jigsaw + Safe
   const handleJigsawSwap = (index: number) => {
     if (jigsawMatched) return;
+    audioSynth.playClick();
     if (selectedJigsawIdx === null) {
       setSelectedJigsawIdx(index);
     } else {
@@ -230,20 +284,25 @@ export default function PuzzleModal({ puzzle, onClose, onSolve, onOpenDoc, inven
       // Perfect alignment check: array should be [0, 1, 2, 3, 4, 5]
       if (nextJig.every((v, i) => v === i)) {
         setJigsawMatched(true);
+        audioSynth.playSuccess();
       }
     }
   };
 
   const handleSafeDigitClick = (num: string) => {
     if (safeSolved) return;
+    audioSynth.playClick();
     setSafeInput(prev => {
       const next = prev.length < 4 ? prev + num : prev;
       if (next === "5137") {
         setSafeSolved(true);
         setSolved(true);
+        audioSynth.playUnlock();
         setTimeout(() => {
           onSolve("conference_pdf");
         }, 1500);
+      } else if (next.length === 4) {
+        audioSynth.playFailure();
       }
       return next;
     });
@@ -252,6 +311,7 @@ export default function PuzzleModal({ puzzle, onClose, onSolve, onOpenDoc, inven
   // 6. Q21 Overlay Punch Card Logic
   const handleCardMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (punchCardAligned || q21Overlapped) return;
+    audioSynth.playClick();
     setIsDraggingCard(true);
     dragStartPos.current = {
       x: e.clientX - cardOffset.x,
@@ -276,6 +336,7 @@ export default function PuzzleModal({ puzzle, onClose, onSolve, onOpenDoc, inven
       setQ21Overlapped(true);
       setIsDraggingCard(false);
       setCardOffset({ x: targetX, y: targetY });  // Snap perfectly!
+      audioSynth.playUnlock();
       setSolved(true);
       setTimeout(() => {
         onSolve("vaccine_code_1997");
@@ -288,6 +349,7 @@ export default function PuzzleModal({ puzzle, onClose, onSolve, onOpenDoc, inven
   };
 
   const handleQ21DirectOverlap = () => {
+    audioSynth.playUnlock();
     setQ21Overlapped(true);
     setPunchCardAligned(true);
     setCardOffset({ x: 120, y: 60 });
@@ -316,7 +378,7 @@ export default function PuzzleModal({ puzzle, onClose, onSolve, onOpenDoc, inven
           background: "var(--bg-card)", 
           borderColor: solved ? "var(--ph-bright)" : "var(--ph-dim)"
         }}
-        className={`w-full max-w-[640px] border rounded-md shadow-2xl p-6 relative flex flex-col gap-6 overflow-hidden ${
+        className={`w-full ${puzzle.id === "Q09" ? "max-w-[820px]" : "max-w-[640px]"} border rounded-md shadow-2xl p-6 relative flex flex-col gap-6 overflow-hidden ${
           shakeActive ? "animate-shake" : ""
         }`}
         ref={containerRef}
@@ -343,9 +405,9 @@ export default function PuzzleModal({ puzzle, onClose, onSolve, onOpenDoc, inven
         {puzzle.id === "Q01" && (
           <div className="space-y-5 flex flex-col items-center">
             {/* Spy Eyes Header */}
-            <div className="bg-void/40 border border-dim/30 rounded p-3 w-full flex flex-col items-center">
-              <span className="text-[10px] text-dim font-bold uppercase tracking-[0.2em] mb-1.5 animate-pulse">
-                [CLIO_MONITOR_EYE: USER_TRACKING_MODE]
+            <div className="bg-void/40 border border-dim/30 rounded p-3.5 w-full flex flex-col items-center gap-3">
+              <span className="text-[10px] text-dim font-bold uppercase tracking-[0.2em] animate-pulse">
+                [CLIO_MONITOR_EYE: GAZE_CORRELATION_MODE]
               </span>
               <svg width="400" height="70" className="w-full max-w-xs">
                 {/* Spy Monitor chassis */}
@@ -357,11 +419,41 @@ export default function PuzzleModal({ puzzle, onClose, onSolve, onOpenDoc, inven
                 <circle cx="240" cy="35" r="18" fill="var(--bg-void)" stroke="var(--ph-mid)" strokeWidth="1.5" />
                 <circle cx={240 + rightEyeOffset.x} cy={35 + rightEyeOffset.y} r="7" fill="var(--ph-bright)" />
               </svg>
+
+              {/* Step Selection Buttons */}
+              <div className="flex gap-2 justify-center w-full max-w-xs">
+                {[0, 1, 2, 3].map((step) => (
+                  <button
+                    key={step}
+                    onClick={() => {
+                      audioSynth.playClick();
+                      setActiveStep(step);
+                    }}
+                    className={`flex-1 py-1 px-1.5 text-[9px] font-mono tracking-wider rounded border transition-all cursor-pointer select-none text-center ${
+                      activeStep === step
+                        ? "bg-bright text-void border-[#B8D44A] shadow-[0_0_8px_rgba(184,212,74,0.35)] font-black"
+                        : "bg-void/60 text-mid border-dim/30 hover:border-mid hover:text-bright"
+                    }`}
+                  >
+                    SLOT {step + 1} VIEW
+                  </button>
+                ))}
+              </div>
+
+              {/* Phase visual state helper */}
+              <div className="text-center w-full">
+                <span className="text-[10.5px] text-[#B8D44A] font-mono tracking-wide bg-bright/5 px-2.5 py-1.5 rounded border border-[#B8D44A]/15 block">
+                  {activeStep === 0 && "👁️ SLOT 1 (3시 방향): 모니터의 우측을 바라보며 '3'을 가집니다."}
+                  {activeStep === 1 && "👁️ SLOT 2 (7시 방향): 모니터의 아래 왼쪽을 비스듬히 노리며 '7'을 가집니다."}
+                  {activeStep === 2 && "👁️ SLOT 3 (9시 방향): 모니터의 우측에서 반전되어 좌측을 쏘아보며 '9'를 가집니다."}
+                  {activeStep === 3 && "👁️ SLOT 4 (12시 방향): 정수리 위 허공을 치켜뜨며 '0'시(12시)를 가집니다."}
+                </span>
+              </div>
             </div>
 
             <p className="text-xs text-mid uppercase leading-relaxed text-center">
-              흩어진 연도/일정 해독 조각들을 순서대로 배열해 보안 세션 암호 <span className="text-bright">"0430"</span>을 완성하십시오.<br/>
-              <span className="text-[10px] text-dim mt-1.5 block leading-normal">(조각을 선택하면 차례로 빈 슬롯에 채워지며, 슬롯을 다시 클릭하면 복구할 수 있습니다.)</span>
+              눈동자가 지시하는 각 슬롯별 시수를 찾아내 암호를 입력하시오.<br/>
+              <span className="text-[9.5px] text-dim mt-1.5 block leading-normal">(조각을 탭하여 삽입하고 제어 보정하십시오. 수동으로 상단 SLOT VIEW 단계를 직접 변경해 시선을 재확인해도 됩니다.)</span>
             </p>
 
             {/* Target Slots */}
@@ -386,17 +478,18 @@ export default function PuzzleModal({ puzzle, onClose, onSolve, onOpenDoc, inven
             </div>
 
             {/* Source Pool */}
-            <div className="space-y-2 text-center w-full">
-              <span className="text-[10px] text-dim font-bold tracking-wider block uppercase">[AVAILABLE_FRAGMENTS]</span>
-              <div className="flex gap-3 justify-center items-center">
-                {q01Pool.length === 0 && (
-                  <span className="text-xs text-dim italic py-2">[모든 조각이 슬롯에 정합되었습니다]</span>
-                )}
-                {q01Pool.map((f, i) => (
+            <div className="space-y-4 text-center w-full">
+              <span className="text-[10px] text-dim font-bold tracking-wider block uppercase">[숫자 선택 패널 (0 ~ 10 선택 가능)]</span>
+              <div className="flex flex-wrap gap-2 justify-center items-center max-w-sm mx-auto">
+                {["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"].map((f, i) => (
                   <button
                     key={i}
                     onClick={() => handleQ01Place(f)}
-                    className="w-12 h-14 border border-dim/60 bg-card rounded flex items-center justify-center text-xl font-bold text-mid hover:text-bright hover:border-[var(--ph-bright)] hover:shadow-[0_0_10px_rgba(184,212,74,0.15)] transition-all cursor-pointer transform hover:-translate-y-0.5"
+                    className={`w-10 h-10 border text-md font-bold rounded flex items-center justify-center transition-all cursor-pointer transform hover:-translate-y-0.5 ${
+                      q01Slots[activeStep] === f
+                        ? "bg-bright text-void border-[#B8D44A] shadow-[0_0_8px_rgba(184,212,74,0.35)] font-black text-xs"
+                        : "border-dim/60 bg-card text-mid hover:text-bright hover:border-[var(--ph-bright)] hover:shadow-[0_0_10px_rgba(184,212,74,0.15)]"
+                    }`}
                   >
                     {f}
                   </button>
@@ -483,7 +576,7 @@ export default function PuzzleModal({ puzzle, onClose, onSolve, onOpenDoc, inven
                     onClick={takeDiaryReward}
                     className="flex items-center gap-2 px-4 py-2 text-xs font-black text-bright bg-void border border-[#B8D44A] hover:bg-[#B8D44A]/10 transition-all rounded shadow"
                   >
-                    <Key className="w-4 h-4 animate-bounce" /> [ 🔑 사물함 열쇠 및 일지 인양하기 ]
+                    <Key className="w-4 h-4 animate-bounce" /> [ 🔑 사물함 열쇠 및 연구 일지 획득하기 ]
                   </button>
                 </div>
               </motion.div>
@@ -536,7 +629,7 @@ export default function PuzzleModal({ puzzle, onClose, onSolve, onOpenDoc, inven
               )}
               {printerStep === "done" && (
                 <div className="text-xs text-bright font-black tracking-widest uppercase flex items-center gap-2 select-none">
-                  <Check className="w-4 h-4" /> 복원 및 출력 완성! Q16 정합 완료.
+                  <Check className="w-4 h-4" /> 복원 및 출력 완성! 대화록 복구 완료.
                 </div>
               )}
             </div>
@@ -547,7 +640,7 @@ export default function PuzzleModal({ puzzle, onClose, onSolve, onOpenDoc, inven
         {puzzle.id === "Q02" && (
           <div className="space-y-5 flex flex-col items-center">
             <p className="text-xs text-mid uppercase leading-normal text-center max-w-md">
-              서재 비밀 책장 선반의 고서들을 주파수 해독 백신 코드 <strong className="text-bright font-black">&apos;V - I - R - U - S&apos;</strong> 순서로 정렬하여 실장된 비밀 공간의 밀실 통로를 개방하십시오.
+              서재 비밀 책장 선반의 책들을 백신 코드 알파벳 <strong className="text-bright font-black">&apos;V - I - R - U - S&apos;</strong> 순서대로 정렬하여 숨겨진 비밀 공간의 밀실 통로를 개방하십시오.
               <br />
               <span className="text-[10px] text-dim mt-1 block">(책을 2개 클릭하면 서로 위치가 교환됩니다. 선택한 책은 위로 돌출됩니다.)</span>
             </p>
@@ -627,100 +720,191 @@ export default function PuzzleModal({ puzzle, onClose, onSolve, onOpenDoc, inven
           </div>
         )}
 
-        {/* ==================== Q09: 학회 연구자료 확보 (Jigsaw + Safe) ==================== */}
+        {/* ==================== Q09: 클리오 제어 장치 (Clio Control Device - Sockets Insertion) ==================== */}
         {puzzle.id === "Q09" && (
-          <div className="space-y-4 flex flex-col items-center">
-            {!jigsawMatched ? (
-              <>
-                <p className="text-xs text-mid text-center leading-normal max-w-sm">
-                  찢어진 전자기 신호 서버 회로도를 원형으로 올바르게 정렬하여 액자 뒤 금고 마스터 코드를 디코딩하십시오.<br/>
-                  (클릭하여 피스를 교환하십시오)
-                </p>
+          <div className="space-y-6 flex flex-col items-center w-full">
+            <div className="text-center space-y-2">
+              <h3 className="text-base font-extrabold text-[#00ffcc] tracking-widest uppercase">
+                ⚡ [ CENTRAL CLIO TERMINAL: 클리오 제어 장치 ]
+              </h3>
+              <p className="text-xs text-mid leading-relaxed max-w-2xl px-4 text-center">
+                CLIO 파일 전송을 관리하는 가상 디바이스가 차단되어 있습니다. 지금까지 교정 안에서 수집한 4가지의 단서를 이용해 최종 백신 패스코드를 찾아내 안전하게 금고를 열어보십시오.
+              </p>
+            </div>
 
-                {/* 2X3 Jigsaw slots click solver */}
-                <div className="grid grid-cols-3 gap-2 p-2 bg-void/50 border border-dim rounded w-full max-w-sm aspect-video">
-                  {jigsawGrid.map((val, idx) => {
-                    const isSelected = selectedJigsawIdx === idx;
-                    // Mock pieces of circuit design using abstract text
-                    const labels = [
-                      "⚡ [ANT-0]", "📡 [COAX_1]", "⚙️ [MOD_2]",
-                      "💾 [TAPE_3]", "📟 [CRT_4]", "🔋 [PWR_5]"
-                    ];
-                    return (
-                      <button
-                        key={idx}
-                        onClick={() => handleJigsawSwap(idx)}
-                        style={{
-                          borderColor: isSelected ? "var(--ph-bright)" : "rgba(184, 212, 74, 0.2)"
-                        }}
-                        className={`border rounded-sm bg-[#080d04] hover:bg-[#121c0b] flex flex-col items-center justify-center font-bold text-xs p-1 select-none transition-all ${
-                          isSelected ? "text-bright shadow-[0_0_8px_var(--glow)]" : "text-mid"
-                        }`}
-                      >
-                        <span className="text-[10px] text-zinc-500 mb-1">피스 #{val}</span>
-                        <span className="truncate max-w-full tracking-tighter text-[10px] text-[#A6C43A] font-sans">{labels[val]}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </>
-            ) : (
-              /* Metalsafe keypad UI */
-              <motion.div 
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="w-full flex flex-col items-center gap-3.5"
-              >
-                <div className="border border-[#B8D44A] bg-void/80 p-3 rounded text-center w-full max-w-sm">
-                  <span className="text-[11px] text-[#A6C43A] font-extrabold uppercase block mb-1">서버 회로도 정합 완료</span>
-                  <span className="text-2xl font-black text-bright tracking-[0.2em]">LOCK CODE : 5137</span>
-                </div>
-
-                <div className="w-full max-w-xs border border-zinc-700 bg-neutral-900 rounded p-4 flex flex-col items-center gap-3">
-                  <span className="text-[9px] text-[#A6C43A] font-black uppercase">GOLD-SECURE-KEYPAD_v1.0</span>
+            {/* Sockets grid (Large UI) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 w-full">
+              {/* Left Column: Sockets and Insertion actions */}
+              <div className="space-y-4 border border-dim/30 bg-void/50 p-4 rounded-lg flex flex-col justify-between">
+                <div>
+                  <span className="text-[10px] text-[#00ffcc] font-extrabold uppercase tracking-widest mb-2.5 block">
+                    🛠️ FRAME SLOTS & SIGNATURE PORT (전자기 소켓 장착란)
+                  </span>
                   
-                  {/* Pin screen */}
-                  <div className="w-full text-center py-2 bg-black text-2xl font-black tracking-[0.3em] font-mono border border-zinc-800 rounded text-amber-500">
-                    {safeSolved ? "[ SAFE_OPENED ]" : safeInput.padEnd(4, "*")}
-                  </div>
+                  <div className="space-y-3">
+                    {[
+                      { id: "diary_37", name: "📔 전 교수의 연구 안전 일지", key: "diary_37", desc: "전 교수의 보안 예방 기록과 친필 일기장 파일" },
+                      { id: "kakao_log", name: "💬 오실로스코프 카톡 기록 로그", key: "kakao_log", desc: "오실로스코프 복원기로 출력한 비공개 카카오톡 대화방 파일" },
+                      { id: "kim_log", name: "💾 김정웅의 고립 교신 채팅 로그", key: "kim_log", desc: "지하 연구실 기기 장치에 남아 있던 교신 로그 파일" },
+                      { id: "escape_kit", name: "📦 비상 대피용 탈출 키트", key: "escape_kit", desc: "비상 수납고 캐비닛에서 획득한 탈출용 생존 도구 세트" }
+                    ].map(slot => {
+                      const hasItem = inventory.includes(slot.key);
+                      const isInserted = q09Slots[slot.key];
 
-                  {/* Buttons 0-9 */}
-                  <div className="grid grid-cols-3 gap-2.5 w-full">
-                    {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map(n => (
-                      <button
-                        key={n}
-                        onClick={() => handleSafeDigitClick(n)}
-                        className="py-1.5 bg-neutral-800 border border-zinc-700 text-sm font-bold hover:border-bright hover:text-bright rounded"
-                      >
-                        {n}
-                      </button>
-                    ))}
-                    <button 
-                      onClick={() => setSafeInput("")}
-                      className="py-1.5 bg-neutral-800 border border-zinc-700 text-[10px] font-bold hover:text-red-500 rounded"
-                    >
-                      CLR
-                    </button>
-                    <button 
-                      onClick={() => handleSafeDigitClick("0")}
-                      className="py-1.5 bg-neutral-800 border border-zinc-700 text-sm font-bold hover:text-bright rounded"
-                    >
-                      0
-                    </button>
-                    <button 
-                      onClick={() => {
-                        if (safeInput !== "5137") {
-                          setSafeInput("");
-                        }
-                      }}
-                      className="py-1.5 bg-[#402010] border border-amber-800 text-[10px] text-amber-500 font-bold rounded"
-                    >
-                      ENTER
-                    </button>
+                      return (
+                        <div 
+                          key={slot.id} 
+                          className={`p-3 border rounded transition-all flex flex-col gap-2 ${
+                            isInserted 
+                              ? "bg-emerald-950/20 border-emerald-500/65 shadow-[0_0_8px_rgba(16,185,129,0.15)] animate-pulse" 
+                              : hasItem 
+                                ? "bg-zinc-900/80 border-[#A6C43A] hover:bg-zinc-900" 
+                                : "bg-void/40 border-dashed border-dim/20"
+                          }`}
+                        >
+                          <div className="flex justify-between items-start">
+                            <div className="space-y-1">
+                              <span className={`text-xs font-black ${isInserted ? "text-emerald-400 font-sans" : hasItem ? "text-bright font-sans" : "text-mid/50 font-sans"}`}>
+                                {slot.name}
+                              </span>
+                              <p className="text-[9.5px] text-zinc-500 leading-normal font-sans">
+                                {slot.desc}
+                              </p>
+                            </div>
+                            
+                            {/* Slot Status Label */}
+                            <div className="text-right">
+                              {isInserted ? (
+                                <span className="text-[9.5px] bg-emerald-500/10 text-emerald-400 font-bold px-2 py-0.5 rounded border border-emerald-500/25 animate-pulse">
+                                  [ ACTIVE ]
+                                </span>
+                              ) : hasItem ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    audioSynth.playUnlock();
+                                    setQ09Slots(prev => ({ ...prev, [slot.key]: true }));
+                                  }}
+                                  className="text-[9.5px] bg-[#B8D44A]/10 text-bright border border-[#B8D44A] px-2 py-0.5 rounded hover:bg-[#B8D44A] hover:text-void font-bold cursor-pointer transition-all active:scale-95 select-none"
+                                >
+                                  [ 삽입하기 ]
+                                </button>
+                              ) : (
+                                <span className="text-[9.5px] bg-red-950/40 text-red-400 font-bold px-2 py-0.5 rounded border border-red-900/25 animate-pulse select-text">
+                                  [ MISSING ]
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
-              </motion.div>
-            )}
+              </div>
+
+              {/* Right Column: Visual Console Matrix Monitor */}
+              <div className="border border-[#00ffcc]/35 bg-[#020501]/95 p-4 rounded-lg flex flex-col items-center justify-between min-h-[300px]">
+                <div className="text-center w-full space-y-1 select-none">
+                  <span className="text-[9px] text-[#00ffcc]/80 font-mono tracking-[0.2em] uppercase block">
+                    [ MONITORING CONSOLE: CLIO_FITTING_INTEGRITY ]
+                  </span>
+                  <div className="h-0.5 w-full bg-gradient-to-r from-transparent via-[#00ffcc]/35 to-transparent my-1" />
+                </div>
+
+                {/* SVG Visualizing the 4 Sockets Interconnecting with the Terminal Reactor */}
+                <div className="w-full h-44 relative flex items-center justify-center select-none">
+                  <svg viewBox="0 0 200 160" className="w-full h-full text-mid font-mono">
+                    {/* Circle Reactor */}
+                    <circle 
+                      cx="100" 
+                      cy="80" 
+                      r="24" 
+                      fill="rgba(0, 255, 204, 0.05)" 
+                      stroke={Object.values(q09Slots).every(Boolean) ? "#00ffcc" : "#00aa77"} 
+                      strokeWidth="2" 
+                      className={Object.values(q09Slots).every(Boolean) ? "animate-spin" : ""}
+                      style={{ transformOrigin: "100px 80px", strokeDasharray: "6,4" }} 
+                    />
+                    <circle 
+                      cx="100" 
+                      cy="80" 
+                      r="16" 
+                      fill="rgba(0,0,0,0.85)" 
+                      stroke={Object.values(q09Slots).every(Boolean) ? "#00ffcc" : "var(--ph-mid)"} 
+                      strokeWidth="1.5" 
+                    />
+                    
+                    {/* Center Lock Icon or Sparkle Text */}
+                    <text x="100" y="84" fill={Object.values(q09Slots).every(Boolean) ? "#00ffcc" : "var(--ph-dim)"} fontSize="11" fontWeight="black" textAnchor="middle" className="pointer-events-none">
+                      {Object.values(q09Slots).every(Boolean) ? "⚡" : "🔒"}
+                    </text>
+
+                    {/* Left Top Node: diary_37 */}
+                    <line x1="40" y1="40" x2="80" y2="68" stroke={q09Slots.diary_37 ? "#00ffcc" : "var(--ph-dark)"} strokeWidth={q09Slots.diary_37 ? "2" : "1"} />
+                    <circle cx="40" cy="40" r="10" fill={q09Slots.diary_37 ? "rgba(0, 255, 204, 0.2)" : "rgba(0,0,0,0.6)"} stroke={q09Slots.diary_37 ? "#00ffcc" : "var(--ph-dark)"} strokeWidth="1.5" />
+                    <text x="40" y="43" fill={q09Slots.diary_37 ? "#00ffcc" : "var(--ph-dim)"} fontSize="7" fontWeight="bold" textAnchor="middle">JRN</text>
+
+                    {/* Left Bottom Node: kakao_log */}
+                    <line x1="40" y1="120" x2="80" y2="92" stroke={q09Slots.kakao_log ? "#00ffcc" : "var(--ph-dark)"} strokeWidth={q09Slots.kakao_log ? "2" : "1"} />
+                    <circle cx="40" cy="120" r="10" fill={q09Slots.kakao_log ? "rgba(0, 255, 204, 0.2)" : "rgba(0,0,0,0.6)"} stroke={q09Slots.kakao_log ? "#00ffcc" : "var(--ph-dark)"} strokeWidth="1.5" />
+                    <text x="40" y="123" fill={q09Slots.kakao_log ? "#00ffcc" : "var(--ph-dim)"} fontSize="7" fontWeight="bold" textAnchor="middle">CHAT</text>
+
+                    {/* Right Top Node: kim_log */}
+                    <line x1="160" y1="40" x2="120" y2="68" stroke={q09Slots.kim_log ? "#00ffcc" : "var(--ph-dark)"} strokeWidth={q09Slots.kim_log ? "2" : "1"} />
+                    <circle cx="160" cy="40" r="10" fill={q09Slots.kim_log ? "rgba(0, 255, 204, 0.2)" : "rgba(0,0,0,0.6)"} stroke={q09Slots.kim_log ? "#00ffcc" : "var(--ph-dark)"} strokeWidth="1.5" />
+                    <text x="160" y="43" fill={q09Slots.kim_log ? "#00ffcc" : "var(--ph-dim)"} fontSize="7" fontWeight="bold" textAnchor="middle">TERM</text>
+
+                    {/* Right Bottom Node: escape_kit */}
+                    <line x1="160" y1="120" x2="120" y2="92" stroke={q09Slots.escape_kit ? "#00ffcc" : "var(--ph-dark)"} strokeWidth={q09Slots.escape_kit ? "2" : "1"} />
+                    <circle cx="160" cy="120" r="10" fill={q09Slots.escape_kit ? "rgba(0, 255, 204, 0.2)" : "rgba(0,0,0,0.6)"} stroke={q09Slots.escape_kit ? "#00ffcc" : "var(--ph-dark)"} strokeWidth="1.5" />
+                    <text x="160" y="123" fill={q09Slots.escape_kit ? "#00ffcc" : "var(--ph-dim)"} fontSize="7" fontWeight="bold" textAnchor="middle">KIT</text>
+                  </svg>
+                </div>
+
+                <div className="w-full space-y-2 mt-2">
+                  {/* Progress Info bar */}
+                  <div className="flex justify-between text-[10px] text-zinc-500 font-bold px-1 select-none">
+                    <span>FITTING_STATUS:</span>
+                    <span className={Object.values(q09Slots).filter(Boolean).length === 4 ? "text-[#00ffcc] animate-pulse font-sans" : "text-[#A6C43A] font-sans"}>
+                      {Object.values(q09Slots).filter(Boolean).length} / 4 LOG_SLOTS MOUNTED
+                    </span>
+                  </div>
+                  
+                  {/* Gauge bar */}
+                  <div className="h-2 w-full bg-void px-0.5 py-0.5 border border-dim/30 rounded flex">
+                    <motion.div 
+                      className="bg-[#00ffcc] h-full"
+                      animate={{ width: `${Object.values(q09Slots).filter(Boolean).length * 25}%` }}
+                      transition={{ duration: 0.3 }}
+                    />
+                  </div>
+                </div>
+
+                {/* Confirm Button */}
+                <div className="w-full pt-1.5 font-bold">
+                  {Object.values(q09Slots).every(Boolean) ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSolved(true);
+                        audioSynth.playUnlock();
+                        setTimeout(() => {
+                          onSolve("conference_pdf");
+                        }, 1200);
+                      }}
+                      className="w-full py-2.5 bg-[#00ffcc] text-void text-xs font-black tracking-widest hover:bg-emerald-400 cursor-pointer rounded transition-all transform hover:scale-[1.02] active:scale-95 text-center flex items-center justify-center gap-2"
+                    >
+                      <Unlock className="w-4 h-4 animate-bounce text-void" /> [ ⚡ 클리오 핵심 복합 제어장치 비활성화 및 승인 ]
+                    </button>
+                  ) : (
+                    <div className="w-full py-2.5 bg-void border border-dashed border-red-900/40 text-red-500 text-[10.5px] uppercase tracking-wider text-center font-black animate-pulse rounded select-none">
+                      ⚠️ 모든 증거 데이터를 마우스 클릭 삽입하여 소켓을 활성화해야 합니다.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -729,7 +913,7 @@ export default function PuzzleModal({ puzzle, onClose, onSolve, onOpenDoc, inven
           <div className="space-y-4 flex flex-col items-center relative select-none">
             <p className="text-xs text-mid text-center leading-normal max-w-md">
               인벤토리의 반투명 천공 카드(Punch Card)를 학회 연구자료(PDF) 문서 위에 마우스로 정확히 끌어다 드롭 오버랩하십시오.<br/>
-              구멍 뚫린 틈새 사이로 보이는 방화벽 무력화 백신 락코드를 인양하십시오.
+              구멍 뚫린 틈새 사이로 보이는 방화벽 무력화 백신 비밀 코드를 찾아내십시오.
             </p>
 
             {/* Interactive Grid Overlay Panel (Synthesized from User Request) */}
@@ -863,7 +1047,7 @@ export default function PuzzleModal({ puzzle, onClose, onSolve, onOpenDoc, inven
                 </div>
 
                 <div className="text-[7.5px] text-[#B8D44A]/60 font-black text-center animate-pulse">
-                  {punchCardAligned ? "[ 🔒 정합 해독 성공! 1997 ]" : "◀ 마우스로 드래그하여 맞추세요 ▶"}
+                  {punchCardAligned ? "[ 🔒 최종 암호 발견! 1997 ]" : "◀ 마우스로 드래그하여 맞추세요 ▶"}
                 </div>
               </div>
             </div>

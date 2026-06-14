@@ -65,6 +65,9 @@ export interface GameState {
   timeRemaining: number;
   activeInterrupt: ClioInterrupt | null;
   firedInterrupts: string[];
+  blackout2Active?: boolean;
+  threatLevel?: number;
+  hideLocation?: string | null;
 }
 
 export interface LogEntry {

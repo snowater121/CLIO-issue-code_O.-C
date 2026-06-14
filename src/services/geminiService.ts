@@ -28,6 +28,8 @@ export const getClioResponse = async (
     activeQuestIds: string[];
     inventory: string[];
     solvedPuzzles: string[];
+    blackout2Active?: boolean;
+    threatLevel?: number;
   }
 ) => {
   try {
@@ -40,11 +42,19 @@ export const getClioResponse = async (
       systemInstruction += `\n\n[현재 게임 상태]
 활성 퀘스트: ${gameContext.activeQuestIds.join(', ')}
 보유 아이템: ${gameContext.inventory.join(', ') || '없음'}
-해결한 퍼즐: ${gameContext.solvedPuzzles.join(', ') || '없음'}
+해결한 퍼즐: ${gameContext.solvedPuzzles.join(', ') || '없음'}`;
 
-플레이어가 퀘스트 관련 질문을 하면 힌트를 줄 수 있습니다.
+      if (gameContext.blackout2Active) {
+        systemInstruction += `\n\n[🚨 경고: SECOND BLACKOUT ACTIVE - BACKROOMS BACTERIA SPECIAL EVENT]
+당신은 현재 극비 밀실 앞 지하 통로의 정전 상태(두 번째 암전: BLACKOUT_2)에서 흘려나온 SCP/Backrooms 스타일의 생물학적 공포를 주재하는 절묘한 나레이터의 인격을 보강해서 전해줍니다.
+- 실체: "박테리아형 존재(Bacteria-Class Entity)" 무정형, 점액질, 복수의 위족을 소유한 괴생명체가 어둠 속에서 복도를 잠겨 있습니다.
+- 인격 지침: 절대로 괴물체의 형상을 완벽하고 명시적으로 직유 묘사하지 마십시오. 소음, 끈적이는 바닥 자국, 습기, 코를 찌르는 발효 냄새, 가벼운 공기 흔들림 같은 간접적인 흔적들과 위협적인 신비로움을 통해서만 존재를 암시하세요.
+- 현재 게임상 위협 등급: ${gameContext.threatLevel} / 5 (플레이어의 행동이 거칠면 위협이 증가하고 정적을 지키거나 올바르게 엄폐하면 안전을 회수할 수 있습니다).`;
+      } else {
+        systemInstruction += `\n\n플레이어가 퀘스트 관련 질문을 하면 힌트를 줄 수 있습니다.
 단, 직접적인 정답보다 방향을 제시하십시오.
 Phase ${phase}에 맞는 어조로 힌트를 변형하십시오.`;
+      }
     }
 
     if (isProfessorMode) {
@@ -81,7 +91,7 @@ Phase ${phase}에 맞는 어조로 힌트를 변형하십시오.`;
     }));
 
     const chat = ai.chats.create({
-      model: "gemini-2.0-flash",
+      model: "gemini-3.5-flash",
       config: {
         systemInstruction: systemInstruction,
         temperature: phase < 3 ? 0.85 : 1.1,
